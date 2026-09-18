@@ -149,21 +149,24 @@
         if (typeof window !== 'undefined') {
           (function(){
             try {
-              var origin = window.location.origin.replace(/\/+$/, '');
-              var parts = window.location.pathname.split('/').filter(Boolean);
+              if (window.API_BASE && typeof window.API_BASE === 'string' && window.API_BASE.trim() !== '') {
+                return;
+              }
+
+              var origin = (window.location.origin || '').replace(/\/+$/, '');
+              var parts = (window.location.pathname || '/').split('/').filter(Boolean);
               var projectRoot = '';
 
-              var host = (window.location.hostname || '').toLowerCase();
               if (parts.length) {
                 var first = String(parts[0]).toLowerCase();
-                // If hostname indicates a devtunnel or similar hosted environment, don't use the first path segment as project root
-                if (first !== 'public' && host.indexOf('devtunnels.ms') === -1) {
+                // Keep API calls on the same origin by default. Only treat the first
+                // URL segment as a project root when it is not a framework/public path.
+                if (first !== 'public' && first !== 'front-end') {
                   projectRoot = '/' + parts[0];
                 }
               }
 
-              // Always (re)assign API_BASE so stale values or external overrides are corrected
-              window.API_BASE = 'https://coc-studentinfo.net/tams/api';
+              window.API_BASE = origin + projectRoot + '/api';
             } catch (inner) {
               console.error('Failed to compute API_BASE dynamically', inner);
             }

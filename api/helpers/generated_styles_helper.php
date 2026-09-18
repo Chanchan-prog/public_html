@@ -28,8 +28,6 @@ function app_apply_generated_styles(string $html, string $root): string {
     $valid = is_array($manifest) && is_file($directory . '/generated.min.css')
         && hash_equals((string)($manifest['source_hash'] ?? ''), app_style_source_fingerprint($appRoot))
         && hash_equals((string)($manifest['css_hash'] ?? ''), hash_file('sha256', $directory . '/generated.min.css'));
-    $tag = $valid
-        ? '<link rel="stylesheet" href="vendor/tailwind/generated.min.css" data-tailwind-mode="generated">'
-        : '<script src="vendor/tailwind/tailwindcss.js" data-tailwind-mode="automatic-fallback"></script>';
+    $tag = '<link rel="stylesheet" href="vendor/tailwind/generated.min.css" data-tailwind-mode="generated">';
     return str_replace('<!-- APP_TAILWIND_STYLES -->', $tag, $html);
 }
