@@ -5,5 +5,5 @@ Options -Indexes -ExecCGI
 </FilesMatch>
 
 <IfModule mod_headers.c>
-  Header always set X-Content-Type-Options "nosniff"
+  Header set X-Content-Type-Options "nosniff"
 </IfModule>
