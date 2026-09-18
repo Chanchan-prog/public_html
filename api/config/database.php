@@ -5,12 +5,30 @@
 // hosting provider's default PHP timezone.
 date_default_timezone_set('Asia/Manila');
 
-$db_host = getenv('DB_HOST') ?: 'db.fr-roub1.bengt.wasmernet.com';
-$db_port = (int)(getenv('DB_PORT') ?: 20184);
-$db_user = getenv('DB_USER') ?: 'user_720eaff7';
-$db_pass_env = getenv('DB_PASS') ?: 'pw_e4JfJFghNxOeTMWSaSikaj9P6gziTZtm';
-$db_pass = $db_pass_env === false ? '' : (string)$db_pass_env;
-$db_name = getenv('DB_NAME') ?: 'bk_teacher_gps3';
+/**
+ * Return the first non-empty environment variable.  Railway exposes MySQL
+ * credentials as MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD and
+ * MYSQLDATABASE, while local/XAMPP deployments historically use DB_ names.
+ */
+function database_env(array $names, $default = null) {
+  foreach ($names as $name) {
+    $value = getenv($name);
+    if ($value !== false && trim((string)$value) !== '') return (string)$value;
+  }
+  return $default;
+}
+
+// MYSQL_URL is also supplied by Railway. It is a fallback only, so explicit
+// DB_* variables continue to take precedence for local and other hosts.
+$railwayUrl = database_env(['MYSQL_URL']);
+$railwayUrlParts = $railwayUrl ? parse_url($railwayUrl) : [];
+if (!is_array($railwayUrlParts)) $railwayUrlParts = [];
+
+$db_host = database_env(['DB_HOST', 'MYSQLHOST'], $railwayUrlParts['host'] ?? 'db.fr-roub1.bengt.wasmernet.com');
+$db_port = (int) database_env(['DB_PORT', 'MYSQLPORT'], $railwayUrlParts['port'] ?? 20184);
+$db_user = database_env(['DB_USER', 'MYSQLUSER'], isset($railwayUrlParts['user']) ? rawurldecode($railwayUrlParts['user']) : 'user_720eaff7');
+$db_pass = database_env(['DB_PASS', 'MYSQLPASSWORD'], isset($railwayUrlParts['pass']) ? rawurldecode($railwayUrlParts['pass']) : 'pw_e4JfJFghNxOeTMWSaSikaj9P6gziTZtm');
+$db_name = database_env(['DB_NAME', 'MYSQLDATABASE'], isset($railwayUrlParts['path']) ? ltrim(rawurldecode($railwayUrlParts['path']), '/') : 'bk_teacher_gps3');
 try {
   $mysqli = new mysqli($db_host, $db_user, $db_pass, $db_name, $db_port);
   if ($mysqli->connect_error) {
