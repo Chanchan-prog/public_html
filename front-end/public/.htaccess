@@ -1,0 +1,16 @@
+AddType application/manifest+json .webmanifest
+
+# Both entry URLs use the fresh PHP-rendered asset version map.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(?:index\.html)?$ ../index.php [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  <Files "push-sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
+  <Files "network-ping.json">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
+</IfModule>

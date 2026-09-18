@@ -1,0 +1,19 @@
+{
+  "name": "3D School Attendance",
+  "short_name": "School Attendance",
+  "description": "Faculty attendance, schedules, and school notifications.",
+  "id": "./",
+  "start_url": "./#/login",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1d8551",
+  "icons": [
+    {
+      "src": "cdoc-logo.png?v=lossless-20260911",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

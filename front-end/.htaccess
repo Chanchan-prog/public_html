@@ -1,0 +1,76 @@
+# Compress text when the browser supports gzip. Apache maintains Content-Length
+# and Vary: Accept-Encoding; binary assets and downloads are not selected.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(?:js|jsx|css)$">
+    # Unversioned references revalidate, including nested vendor imports.
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+    Header set Cache-Control "public, max-age=31536000, immutable" "expr=%{QUERY_STRING} =~ /(^|&)v=[a-f0-9]{20}(&|$)/"
+  </FilesMatch>
+
+  # Static files change infrequently. These moderate lifetimes speed up repeat
+  # visits without allowing stale attendance/API responses to be stored.
+  <FilesMatch "\.(?:png|jpe?g|gif|webp|svg|ico)$">
+    Header set Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
+  </FilesMatch>
+  <FilesMatch "\.(?:woff2?|ttf|otf|eot)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "\.(?:glb|gltf|bin)$">
+    Header set Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
+    Header set Cache-Control "public, max-age=31536000, immutable" "expr=%{QUERY_STRING} =~ /(^|&)v=[a-f0-9]{20}(&|$)/"
+  </FilesMatch>
+  <FilesMatch "\.webmanifest$">
+    Header set Cache-Control "public, max-age=3600, must-revalidate"
+  </FilesMatch>
+</IfModule>
+<IfModule mod_mime.c>
+  AddType text/javascript .jsx
+</IfModule>
+<IfModule mod_deflate.c>
+  <IfModule mod_filter.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/x-javascript application/json application/manifest+json application/xml text/xml image/svg+xml text/csv
+  </IfModule>
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Keep local XAMPP development on HTTP. Every non-local deployment is
+  # redirected to HTTPS, including direct requests for static public assets.
+  RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$ [NC]
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !^https$ [NC]
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=308,L,NE]
+
+  # The backend now lives in the physical api/ directory. Requests such as
+  # /tams/api/login descend into api/.htaccess and are routed to api/index.php.
+</IfModule>
+
+<IfModule mod_headers.c>
+  # PHP entry points set the same headers for non-Apache hosting. Remove those
+  # from Apache's normal header table before adding one final value here, so
+  # responses never contain duplicate security headers.
+  Header onsuccess unset X-Content-Type-Options
+  Header onsuccess unset Referrer-Policy
+  Header onsuccess unset X-Frame-Options
+  Header onsuccess unset Permissions-Policy
+  Header onsuccess unset X-Permitted-Cross-Domain-Policies
+  Header onsuccess unset Strict-Transport-Security
+
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "geolocation=(self), camera=(), microphone=()"
+  Header always set X-Permitted-Cross-Domain-Policies "none"
+
+  # HSTS is sent only on HTTPS responses. Subdomains are intentionally excluded
+  # until every deployed subdomain is confirmed to support HTTPS.
+  Header always set Strict-Transport-Security "max-age=31536000" "expr=%{HTTPS} == 'on' || req('X-Forwarded-Proto') == 'https'"
+</IfModule>
+
+# Compatibility policy for the runtime JSX/blob loader and existing styles.
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+  Header always setifempty Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://rawcdn.githack.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; connect-src 'self' blob: data: https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self' blob:; media-src 'self' data: blob:; frame-src 'self' blob:; manifest-src 'self'"
+  </FilesMatch>
+</IfModule>

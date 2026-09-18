@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>3D School Attendance</title>
+    <link rel="icon" href="cdoc-logo.webp?v=lossless-20260911" type="image/webp" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#1d8551" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="apple-touch-icon" href="cdoc-logo.png?v=lossless-20260911" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="dns-prefetch" href="//cdn.jsdelivr.net" />
+    <script>
+      (function () {
+        try {
+          var p = window.location.pathname || '';
+          var last = p.split('/').filter(Boolean).pop() || '';
+          if (last.toLowerCase() === 'public' && !p.endsWith('/')) {
+            var q = window.location.search || '';
+            var h = window.location.hash || '';
+            window.location.replace(p + '/' + q + h);
+          }
+        } catch (e) {
+          // If this fails, fall through and let the page load as-is.
+        }
+      })();
+    </script>
+
+    <!-- Pinned CDN styles; local copies remain as automatic network fallbacks. -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      crossorigin="anonymous"
+      data-local-fallback="vendor/bootstrap/bootstrap.min.css"
+      onerror="this.onerror=null;this.href=this.dataset.localFallback"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+      rel="stylesheet"
+      crossorigin="anonymous"
+      data-local-fallback="vendor/bootstrap-icons/bootstrap-icons.css"
+      onerror="this.onerror=null;this.href=this.dataset.localFallback"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/sweetalert2@11.26.22/dist/sweetalert2.min.css"
+      rel="stylesheet"
+      crossorigin="anonymous"
+      data-local-fallback="vendor/sweetalert2/sweetalert2.min.css"
+      onerror="this.onerror=null;this.href=this.dataset.localFallback"
+    />
+    <!-- Load application overrides once, after vendor styles, to prevent controls
+         from changing appearance when the React module loader starts. -->
+    <link rel="stylesheet" href="../src/styles/App.css?v=20260913-attendance-history-header" />
+
+    <!-- Specialized vendors load through src/services/vendorLibraries.js when needed. -->
+
+
+
+
+
+
+
+
+
+
+    <!-- Small custom styles (scrollbar) referenced by the app) -->
+    <style>
+      .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.6); border-radius: 9999px; }
+      .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(148,163,184,0.6) transparent; }
+    </style>
+    <!-- APP_TAILWIND_STYLES -->
+  </head>
+  <body>
+    <!-- Inline SVG wave (vector, not an external image). Placed before #root so it's behind the app content. -->
+    <div id="bg-wave" aria-hidden="true">
+      <svg viewBox="0 0 1652 1168" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M0 500 C30 840 190 1030 470 1030 C760 1030 1090 860 1652 460 L1652 1168 L0 1168 Z" fill="#218f57" />
+      </svg>
+    </div>
+    <div id="root">
+      <div class="app-route-resolving" role="status" aria-label="Loading">
+        <div class="app-route-resolving-mark" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <!-- Last-resort recovery screen for failures that happen before React starts. -->
+    <div id="js-error-overlay" class="app-runtime-error" style="display:none" role="alert" aria-live="assertive">
+      <div class="app-page-error-card">
+        <span class="app-page-error-icon" aria-hidden="true"><i class="bi bi-exclamation-triangle"></i></span>
+        <div class="app-page-error-copy">
+          <div class="app-page-error-eyebrow">Application unavailable</div>
+          <h1>Something went wrong</h1>
+          <p>We couldn&apos;t start the application. Refresh the page to try again.</p>
+        </div>
+        <div class="app-page-error-actions">
+          <button id="js-error-reload" type="button" class="app-page-error-primary"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Reload Page</button>
+          <button id="js-error-home" type="button" class="app-page-error-secondary"><i class="bi bi-house" aria-hidden="true"></i>Go to Home</button>
+        </div>
+        <p class="app-page-error-help">If this keeps happening, check your connection or contact the system administrator.</p>
+      </div>
+    </div>
+    <script>
+      (function(){
+        function showError(error){
+          try{
+            console.error('[runtime] Unhandled application error', error);
+            var overlay = document.getElementById('js-error-overlay');
+            if(overlay){ overlay.style.display = 'grid'; }
+          }catch(e){ console.error('Error overlay failed', e); }
+        }
+        function handleUnhandledError(error){
+          // This overlay is only for failures that prevent React from starting.
+          // Feature-level errors after startup must stay inside the feature so a
+          // failed export cannot replace the entire application.
+          if(window.APP_RUNTIME_STARTED){
+            console.error('[runtime] Unhandled feature error', error);
+            return;
+          }
+          showError(error);
+        }
+        window.APP_SHOW_RUNTIME_ERROR = showError;
+        window.addEventListener('error', function(e){
+          // Missing images and other optional resources should not replace the
+          // application with a fatal screen; JavaScript runtime errors should.
+          if(!e || !e.message) return;
+          handleUnhandledError(e.error || e.message);
+        });
+        window.addEventListener('unhandledrejection', function(ev){ handleUnhandledError(ev ? ev.reason : null); });
+        document.addEventListener('click', function(ev){
+          var target = ev.target && ev.target.closest ? ev.target.closest('button') : ev.target;
+          if(!target) return;
+          if(target.id === 'js-error-reload') window.location.reload();
+          if(target.id === 'js-error-home') {
+            window.location.hash = '#/home';
+            window.location.reload();
+          }
+        });
+      })();
+    </script>
+
+    <!-- Ensure API base is available for api.js and modules -->
+    <script>
+      try {
+        if (typeof window !== 'undefined') {
+          (function(){
+            try {
+              var origin = window.location.origin.replace(/\/+$/, '');
+              var parts = window.location.pathname.split('/').filter(Boolean);
+              var projectRoot = '';
+
+              var host = (window.location.hostname || '').toLowerCase();
+              if (parts.length) {
+                var first = String(parts[0]).toLowerCase();
+                // If hostname indicates a devtunnel or similar hosted environment, don't use the first path segment as project root
+                if (first !== 'public' && host.indexOf('devtunnels.ms') === -1) {
+                  projectRoot = '/' + parts[0];
+                }
+              }
+
+              // Always (re)assign API_BASE so stale values or external overrides are corrected
+              window.API_BASE = 'https://coc-studentinfo.net/tams/api';
+            } catch (inner) {
+              console.error('Failed to compute API_BASE dynamically', inner);
+            }
+          })();
+        }
+      } catch (e) { console.error('Failed to set API_BASE', e); }
+    </script>
+
+
+    <!-- React, Babel, and SweetAlert use pinned CDN builds without Node or Vite.
+         Each dependency retries from public/vendor if the CDN is unavailable. -->
+    <script>
+      window.APP_CORE_VENDOR_READY = (function () {
+        function localAsset(path) {
+          var url = new URL(path, document.baseURI || window.location.href);
+          var version = window.APP_ASSET_VERSIONS && window.APP_ASSET_VERSIONS[url.pathname];
+          if (version) url.searchParams.set('v', version);
+          return url.href;
+        }
+
+        function loadWithFallback(name, cdnUrl, localPath, ready) {
+          if (ready()) return Promise.resolve();
+
+          function load(url, isCdn) {
+            return new Promise(function (resolve, reject) {
+              var script = document.createElement('script');
+              var timer = window.setTimeout(function () {
+                script.remove();
+                reject(new Error(name + ' timed out'));
+              }, 15000);
+
+              script.src = url;
+              script.async = true;
+              if (isCdn) script.crossOrigin = 'anonymous';
+              script.onload = function () {
+                window.clearTimeout(timer);
+                if (ready()) resolve();
+                else {
+                  script.remove();
+                  reject(new Error(name + ' did not initialize'));
+                }
+              };
+              script.onerror = function () {
+                window.clearTimeout(timer);
+                script.remove();
+                reject(new Error(name + ' could not be downloaded'));
+              };
+              document.head.appendChild(script);
+            });
+          }
+
+          return load(cdnUrl, true).catch(function (cdnError) {
+            console.warn('[vendor] CDN unavailable for ' + name + '; using the local copy.', cdnError);
+            return load(localAsset(localPath), false);
+          });
+        }
+
+        return loadWithFallback(
+          'React',
+          'https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.production.min.js',
+          'vendor/react/react.production.min.js',
+          function () { return Boolean(window.React); }
+        ).then(function () {
+          return loadWithFallback(
+            'ReactDOM',
+            'https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.production.min.js',
+            'vendor/react/react-dom.production.min.js',
+            function () { return Boolean(window.ReactDOM); }
+          );
+        }).then(function () {
+          return Promise.all([
+            loadWithFallback(
+              'Babel',
+              'https://cdn.jsdelivr.net/npm/@babel/standalone@7.29.0/babel.min.js',
+              'vendor/babel/babel.min.js',
+              function () { return Boolean(window.Babel); }
+            ),
+            loadWithFallback(
+              'SweetAlert2',
+              'https://cdn.jsdelivr.net/npm/sweetalert2@11.26.22/dist/sweetalert2.min.js',
+              'vendor/sweetalert2/sweetalert2.min.js',
+              function () { return Boolean(window.Swal); }
+            )
+          ]);
+        });
+      })();
+    </script>
+
+    <!-- QR code generator (used by QrModal) -->
+    <!-- Intentionally omitted: we fall back to server-side QR when no client lib is available. -->
+
+
+    <!-- Server-side QR fallback uses the shared API base at the qrcode endpoint. -->
+
+    <!-- In-browser module loader + JSX transpilation (no bundler) -->
+    <script>
+      (async function(){
+        try {
+          await window.APP_CORE_VENDOR_READY;
+        } catch (err) {
+          console.error('Core vendor loading failed', err);
+          if (typeof window.APP_SHOW_RUNTIME_ERROR === 'function') window.APP_SHOW_RUNTIME_ERROR(err);
+          return;
+        }
+
+        // Map of absolute URL -> blob URL
+        const blobCache = new Map();
+        const processingModules = new Map();
+        const importedModules = new Map();
+
+        // Map for generated virtual modules (like 'react' and 'react-dom')
+        const virtualCache = new Map();
+
+        function versionedAsset(url) {
+          const parsed = new URL(url, document.baseURI || window.location.href);
+          const version = window.APP_ASSET_VERSIONS?.[parsed.pathname];
+          if (parsed.origin === window.location.origin && version) parsed.searchParams.set('v', version);
+          return parsed.href;
+        }
+
+        function resolveUrl(specifier, baseUrl) {
+          try {
+            return new URL(specifier, baseUrl).href;
+          } catch (e) {
+            return specifier; // leave as-is for bare imports
+          }
+        }
+
+        // Create a virtual module that exposes UMD globals as ES module
+        function createVirtualModule(name) {
+          if (virtualCache.has(name)) return virtualCache.get(name);
+          let code = '';
+          if (name === 'react') {
+            code = `const R = window.React; export default R; export const {useState, useEffect, useRef, useContext, createContext, useReducer, useMemo, useCallback, Fragment, memo, useLayoutEffect} = R;`;
+          } else if (name === 'react-dom') {
+            code = `const RD = window.ReactDOM; export default RD;`;
+          } else if (name === 'html5-qrcode') {
+            code = `export default window.Html5Qrcode;`;
+          } else if (name === 'qrcode') {
+            code = `export default window.QRCode;`;
+          } else {
+            // fallback: expose global with same name (window[name])
+            code = `export default window['${name}'];`;
+          }
+          const blob = new Blob([code], { type: 'text/javascript' });
+          const url = URL.createObjectURL(blob);
+          virtualCache.set(name, url);
+          return url;
+        }
+
+        // Fetch, transform (JSX -> JS) and create blob URL for a module and its dependencies
+        async function processModule(url) {
+          if (blobCache.has(url)) return blobCache.get(url);
+          if (processingModules.has(url)) return processingModules.get(url);
+          const promise = buildModule(url);
+          processingModules.set(url, promise);
+          try { return await promise; }
+          finally { processingModules.delete(url); }
+        }
+
+        async function buildModule(url) {
+          if (!url) throw new Error('Invalid module URL: ' + url);
+          if (blobCache.has(url)) return blobCache.get(url);
+
+          // handle bare imports like 'react'
+          if (!/^https?:\/\//i.test(url) && !url.startsWith('/') && !url.startsWith('./') && !url.startsWith('../')) {
+            // treat as virtual
+            const v = createVirtualModule(url);
+            blobCache.set(url, v);
+            return v;
+          }
+
+          const resp = await fetch(versionedAsset(url), { cache: 'default' });
+          if (!resp.ok) {
+            console.error('[module-loader] Page resource request failed', {
+              url: url,
+              status: resp.status,
+              contentType: resp.headers.get('content-type') || 'unknown'
+            });
+            const requestError = new Error('The page resource could not be loaded.');
+            requestError.code = 'module_request_failed';
+            throw requestError;
+          }
+          let code = await resp.text();
+          const sourceStart = code.trimStart();
+          if (/^(?:<!doctype\s+html|<html|<head|<body|<script)\b/i.test(sourceStart)) {
+            console.error('[module-loader] Page resource returned HTML instead of source code', {
+              url: url,
+              status: resp.status,
+              contentType: resp.headers.get('content-type') || 'unknown'
+            });
+            const formatError = new Error('The page resource returned an unexpected response.');
+            formatError.code = 'unexpected_module_response';
+            throw formatError;
+          }
+
+          // find import/export specifiers to resolve dependencies
+          // match import ... from '...'; import '...'; export ... from '...'
+          // Match only real module import/export statements at line start.
+          // This avoids false positives like "users/import" inside string literals.
+          const importRegex = /^\s*import\s+(?:[^'";]+?\s+from\s+)?['"]([^'"]+)['"];?|^\s*export\s+[^;]*?from\s+['"]([^'"]+)['"]/gm;
+          let m;
+          const replacements = [];
+          while ((m = importRegex.exec(code)) !== null) {
+            const spec = m[1] || m[2];
+            if (!spec) continue;
+            // handle CSS imports by creating a virtual module that injects a <link> to the CSS
+            if (spec.endsWith('.css')) {
+              const cssAbs = versionedAsset(resolveUrl(spec, url));
+              const cssModuleCode = `const href = ${JSON.stringify(cssAbs)}; (function(){ if(!document.querySelector('link[data-injected-module-css="'+href+'"]')){ var l=document.createElement('link'); l.rel='stylesheet'; l.href=href; l.setAttribute('data-injected-module-css', href); document.head.appendChild(l);} })(); export default href;`;
+              const cssBlob = new Blob([cssModuleCode], { type: 'text/javascript' });
+              const cssBlobUrl = URL.createObjectURL(cssBlob);
+              // treat this dependency as processed and use its blob URL
+              replacements.push({ start: m.index, spec, blob: cssBlobUrl });
+              continue;
+            }
+            let depUrl;
+            if (spec === 'react' || spec === 'react-dom' || spec === 'html5-qrcode' || spec === 'qrcode') {
+              depUrl = createVirtualModule(spec);
+            } else {
+              depUrl = resolveUrl(spec, url);
+              depUrl = await processModule(depUrl);
+            }
+            // record replacement: replace the original import specifier string with the blob URL
+            replacements.push({ start: m.index, spec, blob: depUrl });
+          }
+
+          // Replace import specifiers occurrences (simple replace of "spec" to "blobURL")
+          // Safer to replace all exact occurrences of '"spec"' and '\'spec\'' with the blob URL
+          replacements.forEach(r => {
+            // build a RegExp that matches the original quoted import specifier and replace it with the blob URL
+            const escapedSpec = r.spec.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const re1 = new RegExp('(["\'])' + escapedSpec + '\\1', 'g');
+            code = code.replace(re1, `"${r.blob}"`);
+          });
+
+          // transpile JSX (preserve import/export) with Babel standalone
+          try {
+            const transformed = Babel.transform(code, { presets: ['react'], sourceType: 'module' }).code;
+            const blob = new Blob([transformed], { type: 'text/javascript' });
+            const blobUrl = URL.createObjectURL(blob);
+            blobCache.set(url, blobUrl);
+            return blobUrl;
+          } catch (err) {
+            console.error('Babel transform failed for', url, err);
+            throw err;
+          }
+        }
+
+        // Pages use the same source compiler/linker, but only on navigation.
+        window.APP_IMPORT_MODULE = function (relativePath) {
+          const url = new URL(relativePath, document.baseURI || window.location.href).href;
+          const sourceRoot = new URL('../src/', document.baseURI || window.location.href);
+          const target = new URL(url);
+          if (target.origin !== sourceRoot.origin || !target.pathname.startsWith(sourceRoot.pathname)) {
+            return Promise.reject(new Error('Invalid page module path.'));
+          }
+          if (importedModules.has(url)) return importedModules.get(url);
+          const promise = processModule(url).then(blobUrl => import(blobUrl));
+          importedModules.set(url, promise);
+          promise.catch(() => { if (importedModules.get(url) === promise) importedModules.delete(url); });
+          return promise;
+        };
+
+        // Start from the src entry relative to this HTML file
+        const entry = new URL('../src/index.jsx', document.baseURI || window.location.href).href;
+        try {
+          const entryBlob = await processModule(entry);
+          await import(entryBlob);
+        } catch (err) {
+          console.error('Module loader error', err);
+          if (typeof window.APP_SHOW_RUNTIME_ERROR === 'function') window.APP_SHOW_RUNTIME_ERROR(err);
+        }
+      })();
+    </script>
+
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "require": {
+    "endroid/qr-code": "^6.0",
+    "minishlink/web-push": "^9.0"
+  },
+  "scripts": {
+    "post-install-cmd": "@php scripts/patch-web-push-openssl.php",
+    "post-update-cmd": "@php scripts/patch-web-push-openssl.php"
+  }
+}

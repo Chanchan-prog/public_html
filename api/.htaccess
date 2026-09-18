@@ -1,0 +1,27 @@
+Options -Indexes
+
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Route clean API URLs (for example /tams/api/login) through the PHP
+    # front controller. Keep this before the protected-directory rule because
+    # a physical api/ source directory also exists beside index.php.
+    RewriteRule ^api(?:/.*)?$ index.php [QSA,L]
+
+    # All browser/API traffic must enter through the root index.php router.
+    # PHP can still load these directories internally, and CLI cron scripts
+    # remain executable from the server filesystem.
+    RewriteRule ^(?:cache|config|helpers|logs|scripts|templates|vendor|uploads)(?:/|$) - [F,L,NC]
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Prevent database dumps, runtime logs/state, environment files, backups, and
+# dependency metadata from being downloaded if they are placed in this folder.
+<FilesMatch "(?i)^(?:composer\.(?:json|lock)|.*\.(?:sql|log|lock|env|ini|bak|backup))$">
+    Require all denied
+</FilesMatch>
