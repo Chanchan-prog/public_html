@@ -24,10 +24,9 @@ function app_apply_generated_styles(string $html, string $root): string {
         $appRoot = $root . '/front-end';
     }
     $directory = $appRoot . '/public/vendor/tailwind';
-    $manifest = is_file($directory . '/generated-manifest.json') ? json_decode(file_get_contents($directory . '/generated-manifest.json'), true) : null;
-    $valid = is_array($manifest) && is_file($directory . '/generated.min.css')
-        && hash_equals((string)($manifest['source_hash'] ?? ''), app_style_source_fingerprint($appRoot))
-        && hash_equals((string)($manifest['css_hash'] ?? ''), hash_file('sha256', $directory . '/generated.min.css'));
+    // The generated stylesheet is served as a normal versioned static asset.
+    // Re-hashing every JSX/CSS source file here does not regenerate it and was
+    // needlessly blocking each initial HTML response.
     $tag = '<link rel="stylesheet" href="vendor/tailwind/generated.min.css" data-tailwind-mode="generated">';
     return str_replace('<!-- APP_TAILWIND_STYLES -->', $tag, $html);
 }
