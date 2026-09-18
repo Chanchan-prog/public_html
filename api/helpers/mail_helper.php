@@ -84,10 +84,25 @@ function mail_helper_should_use_smtp($mailConfig) {
 }
 
 function mail_helper_deliver($to, $from, $subject, $htmlBody, $mailConfig = null) {
-    if (mail_helper_should_use_smtp($mailConfig)) {
+    $transport = mail_helper_transport($mailConfig);
+    $smtpReady = mail_helper_smtp_ready($mailConfig);
+
+    // A container such as the Railway PHP CLI image has no local sendmail
+    // service. Do not silently claim SMTP mode while sending through mail().
+    // The public reset response remains generic; this diagnostic is only in
+    // the server log and contains no recipient address or credentials.
+    if ($transport === 'smtp' && !$smtpReady) {
+        error_log('[mail_helper] SMTP transport selected, but MAIL_SMTP_USER or MAIL_SMTP_PASS is missing.');
+        return false;
+    }
+
+    if ($smtpReady && $transport !== 'mail') {
         return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
     }
 
+    if (!$smtpReady) {
+        error_log('[mail_helper] No SMTP credentials configured; using the local mail transport. This transport is unavailable in the Docker/Railway image.');
+    }
     $localFrom = mail_helper_from_address($from, $mailConfig);
     $sent = mail_helper_send_via_php_mail($to, $localFrom, $subject, $htmlBody);
     if (!$sent) error_log('[mail_helper] local mail transport rejected a message for ' . trim((string)$to));
