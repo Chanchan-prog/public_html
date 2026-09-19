@@ -1,0 +1,10 @@
+<?php
+// Copy this file to database.private.php on the server, then replace every
+// placeholder. Do not commit or upload the completed private file publicly.
+return [
+    'host' => 'localhost',
+    'port' => 3306,
+    'name' => 'CPANEL_DATABASE_NAME',
+    'user' => 'CPANEL_DATABASE_USER',
+    'pass' => 'CPANEL_DATABASE_PASSWORD',
+];

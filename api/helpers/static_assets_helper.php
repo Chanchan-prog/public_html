@@ -2,15 +2,14 @@
 declare(strict_types=1);
 
 // Versioned URLs change automatically after edits without a manual release step.
-// Use metadata fingerprints rather than hashing every source and vendor file on
-// every page request. The old content-hash scan delayed the initial response
-// considerably on Docker's small shared disk, especially before React starts.
+// Text assets use content hashes. Large bundled 3D models use a modification
+// time + size fingerprint so rendering index.php never has to re-read 100+ MB.
 function app_static_versions(string $root, string $base): array {
     $versions = [];
     $groups = [
-        ['folder' => 'src', 'extensions' => ['js', 'jsx', 'css']],
-        ['folder' => 'public/vendor', 'extensions' => ['js', 'jsx', 'css']],
-        ['folder' => 'public/building/models', 'extensions' => ['glb', 'gltf', 'bin']],
+        ['folder' => 'src', 'extensions' => ['js', 'jsx', 'css'], 'content_hash' => true],
+        ['folder' => 'public/vendor', 'extensions' => ['js', 'jsx', 'css'], 'content_hash' => true],
+        ['folder' => 'public/building/models', 'extensions' => ['glb', 'gltf', 'bin'], 'content_hash' => false],
     ];
 
     foreach ($groups as $group) {
@@ -21,7 +20,9 @@ function app_static_versions(string $root, string $base): array {
         foreach ($iterator as $file) {
             if (!$file->isFile() || !in_array(strtolower($file->getExtension()), $group['extensions'], true)) continue;
             $relative = str_replace('\\', '/', substr($file->getPathname(), strlen($root) + 1));
-            $fingerprint = hash('sha256', $file->getMTime() . ':' . $file->getSize());
+            $fingerprint = $group['content_hash']
+                ? hash_file('sha256', $file->getPathname())
+                : hash('sha256', $file->getMTime() . ':' . $file->getSize());
             $versions[$base . '/' . $relative] = substr($fingerprint, 0, 20);
         }
     }

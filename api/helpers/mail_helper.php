@@ -12,101 +12,12 @@ function mail_helper_is_single_recipient($email) {
     return (bool)filter_var($recipient, FILTER_VALIDATE_EMAIL);
 }
 
-function mail_helper_log_once($key, $message) {
-    static $logged = [];
-    if (isset($logged[$key])) return;
-    $logged[$key] = true;
+function mail_helper_smtp_failure($stage, $detail = '') {
+    $message = '[mail_helper] SMTP ' . trim((string)$stage) . ' failed';
+    $cleanDetail = trim(preg_replace('/[\r\n\t]+/', ' ', (string)$detail));
+    if ($cleanDetail !== '') $message .= ': ' . substr($cleanDetail, 0, 300);
     error_log($message);
-}
-
-/** Load api/config/mail.php once per request. */
-function mail_helper_config() {
-    static $config = null;
-    if ($config !== null) return $config;
-    $path = __DIR__ . '/../config/mail.php';
-    $loaded = is_file($path) ? require $path : [];
-    $config = is_array($loaded) ? $loaded : [];
-    return $config;
-}
-
-function mail_helper_smtp_ready($mailConfig) {
-    if (!is_array($mailConfig)) return false;
-    return !empty($mailConfig['smtp_host'])
-        && !empty($mailConfig['smtp_user'])
-        && (string)($mailConfig['smtp_pass'] ?? '') !== '';
-}
-
-/**
- * Resolve the delivery transport: "smtp", "mail" (local server transport) or
- * "auto". Shared hosting that blocks outbound SMTP still delivers through the
- * local transport while the value is "auto", which is the default.
- */
-function mail_helper_transport($mailConfig) {
-    $configured = function_exists('getenv') ? (string)getenv('MAIL_TRANSPORT') : '';
-    if (trim($configured) === '' && is_array($mailConfig)) {
-        $configured = (string)($mailConfig['transport'] ?? '');
-    }
-    $transport = strtolower(trim($configured));
-    return in_array($transport, ['smtp', 'mail'], true) ? $transport : 'auto';
-}
-
-function mail_helper_from_address($fromFallback, $mailConfig) {
-    if (is_array($mailConfig)) {
-        if (!empty($mailConfig['from_email'])) return (string)$mailConfig['from_email'];
-        if (!empty($mailConfig['smtp_user'])) return (string)$mailConfig['smtp_user'];
-    }
-    $fallback = trim((string)$fromFallback);
-    return $fallback !== '' ? $fallback : 'noreply@localhost';
-}
-
-/**
- * Deliver HTML through the web server's own mail transport (cPanel Exim or the
- * configured sendmail binary) instead of an outbound SMTP connection.
- */
-function mail_helper_send_via_php_mail($to, $from, $subject, $htmlBody) {
-    $headers = [
-        'MIME-Version: 1.0',
-        'Content-Type: text/html; charset=UTF-8',
-        'From: ' . $from,
-        'X-Mailer: PHP/' . PHP_VERSION,
-    ];
-    return @mail($to, $subject, $htmlBody, implode("\r\n", $headers));
-}
-
-/**
- * Whether this message should use SMTP. "mail" is an explicit instruction to
- * use the hosting provider's local MTA directly; it must not first wait for an
- * outbound SMTP connection that shared hosting often blocks.
- */
-function mail_helper_should_use_smtp($mailConfig) {
-    return mail_helper_transport($mailConfig) !== 'mail'
-        && mail_helper_smtp_ready($mailConfig);
-}
-
-function mail_helper_deliver($to, $from, $subject, $htmlBody, $mailConfig = null) {
-    $transport = mail_helper_transport($mailConfig);
-    $smtpReady = mail_helper_smtp_ready($mailConfig);
-
-    // A container such as the Railway PHP CLI image has no local sendmail
-    // service. Do not silently claim SMTP mode while sending through mail().
-    // The public reset response remains generic; this diagnostic is only in
-    // the server log and contains no recipient address or credentials.
-    if ($transport === 'smtp' && !$smtpReady) {
-        error_log('[mail_helper] SMTP transport selected, but MAIL_SMTP_USER or MAIL_SMTP_PASS is missing.');
-        return false;
-    }
-
-    if ($smtpReady && $transport !== 'mail') {
-        return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
-    }
-
-    if (!$smtpReady) {
-        error_log('[mail_helper] No SMTP credentials configured; using the local mail transport. This transport is unavailable in the Docker/Railway image.');
-    }
-    $localFrom = mail_helper_from_address($from, $mailConfig);
-    $sent = mail_helper_send_via_php_mail($to, $localFrom, $subject, $htmlBody);
-    if (!$sent) error_log('[mail_helper] local mail transport rejected a message for ' . trim((string)$to));
-    return $sent;
+    return false;
 }
 
 /**
@@ -150,7 +61,10 @@ function send_forgot_password_email($to, $firstName, $lastName, $otp) {
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
-        return mail_helper_deliver($to, $from, $subject, $htmlBody, $mailConfig);
+        $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
+        if ($useSmtp) {
+            return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
+        }
     }
 
     $headers = [
@@ -202,7 +116,10 @@ function send_new_account_email($to, $firstName, $lastName, $username) {
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
-        return mail_helper_deliver($to, $from, $subject, $htmlBody, $mailConfig);
+        $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
+        if ($useSmtp) {
+            return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
+        }
     }
 
     $headers = [
@@ -226,7 +143,9 @@ function send_temporary_password_email($to, $firstName, $lastName, $temporaryPas
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
-        return mail_helper_deliver($to, $from, $subject, $htmlBody, $mailConfig);
+        if (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)($mailConfig['smtp_pass'] ?? '') !== '') {
+            return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
+        }
     }
     return @mail($to, $subject, $htmlBody, "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nFrom: {$from}");
 }
@@ -241,7 +160,9 @@ function send_school_id_password_reset_email($to, $firstName, $lastName) {
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
-        return mail_helper_deliver($to, $from, $subject, $htmlBody, $mailConfig);
+        if (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)($mailConfig['smtp_pass'] ?? '') !== '') {
+            return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
+        }
     }
     return @mail($to, $subject, $htmlBody, "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nFrom: {$from}");
 }
@@ -312,7 +233,10 @@ function send_personal_notification_email($to, $firstName, $notificationType, $b
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
-        return mail_helper_deliver($recipient, $from, $subject, $htmlBody, $mailConfig);
+        $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
+        if ($useSmtp) {
+            return send_via_smtp_socket($recipient, $from, $subject, $htmlBody, $mailConfig);
+        }
     }
 
     $headers = [
@@ -325,46 +249,32 @@ function send_personal_notification_email($to, $firstName, $notificationType, $b
 }
 
 /**
- * Deliver one message over SMTP using only PHP sockets (no PHPMailer).
- *
- * Shared hosting commonly blocks outbound SMTP ports. When the SMTP attempt
- * fails, the message is retried through the server's local mail transport
- * unless MAIL_TRANSPORT is explicitly set to "smtp".
- * Gmail uses smtp.gmail.com:587 (STARTTLS); port 465 uses implicit TLS.
- */
-/**
- * Deliver one message over SMTP, then fall back to the local mail transport.
- *
- * The fallback keeps daily notifications working on hosting that blocks
- * outbound SMTP. Set MAIL_TRANSPORT=smtp to disable it.
+ * Send email via SMTP using only PHP sockets (no PHPMailer).
+ * Works with Gmail (smtp.gmail.com:587, STARTTLS).
  */
 function send_via_smtp_socket($to, $fromFallback, $subject, $htmlBody, $mailConfig) {
-    if (mail_helper_smtp_deliver($to, $fromFallback, $subject, $htmlBody, $mailConfig)) return true;
-    if (mail_helper_transport($mailConfig) === 'smtp') return false;
-
-    error_log('[mail_helper] SMTP delivery failed; retrying through the local mail transport.');
-    $localFrom = mail_helper_from_address($fromFallback, $mailConfig);
-    $localSent = mail_helper_send_via_php_mail($to, $localFrom, $subject, $htmlBody);
-    if (!$localSent) {
-        error_log('[mail_helper] local mail transport also rejected a message for ' . $to);
-    }
-    return $localSent;
-}
-
-function mail_helper_smtp_deliver($to, $fromFallback, $subject, $htmlBody, $mailConfig) {
     if (!mail_helper_is_single_recipient($to)) {
         error_log('[mail_helper] SMTP send refused: invalid single recipient');
         return false;
     }
     $to = trim((string)$to);
 
-    $host = $mailConfig['smtp_host'];
+    $host = trim((string)($mailConfig['smtp_host'] ?? ''));
     $port = (int)($mailConfig['smtp_port'] ?? 587);
-    $user = $mailConfig['smtp_user'];
-    $pass = (string)$mailConfig['smtp_pass'];
-    $secure = (isset($mailConfig['smtp_secure']) && strtolower((string)$mailConfig['smtp_secure']) === 'ssl') || $port === 465;
-    $fromEmail = !empty($mailConfig['from_email']) ? $mailConfig['from_email'] : (!empty($mailConfig['smtp_user']) ? $mailConfig['smtp_user'] : $fromFallback);
-    $fromName = $mailConfig['from_name'] ?? 'Teacher Attendance';
+    $user = trim((string)($mailConfig['smtp_user'] ?? ''));
+    $pass = (string)($mailConfig['smtp_pass'] ?? '');
+    $secure = strtolower(trim((string)($mailConfig['smtp_secure'] ?? 'tls')));
+    if (!in_array($secure, ['tls', 'ssl', 'none'], true)) $secure = 'tls';
+    $timeout = max(1, min(60, (int)($mailConfig['timeout'] ?? 15)));
+    $fromEmail = !empty($mailConfig['from_email']) ? trim((string)$mailConfig['from_email']) : ($user !== '' ? $user : $fromFallback);
+    $fromName = trim((string)($mailConfig['from_name'] ?? 'Teacher Attendance'));
+
+    if ($host === '' || $port < 1 || $port > 65535 || $user === '' || $pass === '') {
+        return mail_helper_smtp_failure('configuration', 'SMTP host, port, username, or password is missing');
+    }
+    if (!mail_helper_is_single_recipient($fromEmail)) {
+        return mail_helper_smtp_failure('configuration', 'From address is invalid');
+    }
 
     $fromHeader = $fromName ? "=?UTF-8?B?" . base64_encode($fromName) . "?= <$fromEmail>" : "<$fromEmail>";
     $subjectEnc = "=?UTF-8?B?" . base64_encode($subject) . "?=";
@@ -381,19 +291,17 @@ function mail_helper_smtp_deliver($to, $fromFallback, $subject, $htmlBody, $mail
     $errNo = 0;
     $errStr = '';
     $context = stream_context_create();
+    $socketTarget = ($secure === 'ssl' ? 'ssl' : 'tcp') . "://$host:$port";
     $sock = @stream_socket_client(
-        ($secure ? 'ssl://' : 'tcp://') . $host . ':' . $port,
+        $socketTarget,
         $errNo,
         $errStr,
-        15,
+        $timeout,
         STREAM_CLIENT_CONNECT,
         $context
     );
     if (!$sock) {
-        if (function_exists('error_log')) {
-            error_log("[mail_helper] SMTP connect failed: $errStr ($errNo)");
-        }
-        return false;
+        return mail_helper_smtp_failure('connect', "$errStr ($errNo)");
     }
 
     $getLine = function () use ($sock) {
@@ -413,45 +321,42 @@ function mail_helper_smtp_deliver($to, $fromFallback, $subject, $htmlBody, $mail
         return strpos($line, $code) === 0;
     };
 
-    if (!$expect(220)) { @fclose($sock); return false; }
-    if (!$send("EHLO " . ($_SERVER['SERVER_NAME'] ?? 'localhost'))) { @fclose($sock); return false; }
-    if (!$expect(250)) { @fclose($sock); return false; }
+    if (!$expect(220)) { @fclose($sock); return mail_helper_smtp_failure('server greeting'); }
+    if (!$send("EHLO " . ($_SERVER['SERVER_NAME'] ?? 'localhost'))) { @fclose($sock); return mail_helper_smtp_failure('EHLO write'); }
+    if (!$expect(250)) { @fclose($sock); return mail_helper_smtp_failure('EHLO response'); }
 
-    if ($port === 587 && !$secure) {
-        if (!$send("STARTTLS")) { @fclose($sock); return false; }
-        if (!$expect(220)) { @fclose($sock); return false; }
+    if ($secure === 'tls') {
+        if (!$send("STARTTLS")) { @fclose($sock); return mail_helper_smtp_failure('STARTTLS write'); }
+        if (!$expect(220)) { @fclose($sock); return mail_helper_smtp_failure('STARTTLS response'); }
         $crypto = @stream_socket_enable_crypto($sock, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
         if (!$crypto) {
-            if (function_exists('error_log')) error_log('[mail_helper] STARTTLS failed');
             @fclose($sock);
-            return false;
+            return mail_helper_smtp_failure('STARTTLS handshake');
         }
-        if (!$send("EHLO " . ($_SERVER['SERVER_NAME'] ?? 'localhost'))) { @fclose($sock); return false; }
-        if (!$expect(250)) { @fclose($sock); return false; }
+        if (!$send("EHLO " . ($_SERVER['SERVER_NAME'] ?? 'localhost'))) { @fclose($sock); return mail_helper_smtp_failure('TLS EHLO write'); }
+        if (!$expect(250)) { @fclose($sock); return mail_helper_smtp_failure('TLS EHLO response'); }
     }
 
-    if (!$send("AUTH LOGIN")) { @fclose($sock); return false; }
-    if (!$expect(334)) { @fclose($sock); return false; }
-    if (!$send(base64_encode($user))) { @fclose($sock); return false; }
-    if (!$expect(334)) { @fclose($sock); return false; }
-    if (!$send(base64_encode($pass))) { @fclose($sock); return false; }
+    if (!$send("AUTH LOGIN")) { @fclose($sock); return mail_helper_smtp_failure('AUTH LOGIN write'); }
+    if (!$expect(334)) { @fclose($sock); return mail_helper_smtp_failure('AUTH LOGIN response'); }
+    if (!$send(base64_encode($user))) { @fclose($sock); return mail_helper_smtp_failure('username write'); }
+    if (!$expect(334)) { @fclose($sock); return mail_helper_smtp_failure('username response'); }
+    if (!$send(base64_encode($pass))) { @fclose($sock); return mail_helper_smtp_failure('password write'); }
     if (!$expect(235)) {
-        if (function_exists('error_log')) error_log('[mail_helper] SMTP auth failed (check Gmail App Password)');
         @fclose($sock);
-        return false;
+        return mail_helper_smtp_failure('authentication', 'check the SMTP username and app password');
     }
 
-    if (!$send("MAIL FROM:<" . $fromEmail . ">")) { @fclose($sock); return false; }
-    if (!$expect(250)) { @fclose($sock); return false; }
-    if (!$send("RCPT TO:<" . $to . ">")) { @fclose($sock); return false; }
-    if (!$expect(250)) { @fclose($sock); return false; }
-    if (!$send("DATA")) { @fclose($sock); return false; }
-    if (!$expect(354)) { @fclose($sock); return false; }
-    if (!@fwrite($sock, $message . "\r\n.\r\n")) { @fclose($sock); return false; }
+    if (!$send("MAIL FROM:<" . $fromEmail . ">")) { @fclose($sock); return mail_helper_smtp_failure('MAIL FROM write'); }
+    if (!$expect(250)) { @fclose($sock); return mail_helper_smtp_failure('MAIL FROM response'); }
+    if (!$send("RCPT TO:<" . $to . ">")) { @fclose($sock); return mail_helper_smtp_failure('RCPT TO write'); }
+    if (!$expect(250)) { @fclose($sock); return mail_helper_smtp_failure('RCPT TO response'); }
+    if (!$send("DATA")) { @fclose($sock); return mail_helper_smtp_failure('DATA write'); }
+    if (!$expect(354)) { @fclose($sock); return mail_helper_smtp_failure('DATA response'); }
+    if (!@fwrite($sock, $message . "\r\n.\r\n")) { @fclose($sock); return mail_helper_smtp_failure('message write'); }
     if (!$expect(250)) {
-        if (function_exists('error_log')) error_log('[mail_helper] SMTP DATA rejected');
         @fclose($sock);
-        return false;
+        return mail_helper_smtp_failure('message acceptance');
     }
     $send("QUIT");
     @fclose($sock);

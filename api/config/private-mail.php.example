@@ -1,0 +1,14 @@
+<?php
+// Copy this file to private-mail.php on the server, then replace every
+// placeholder. Use an app password or an SMTP account password, never a
+// primary mailbox password. Do not commit the completed private file.
+return [
+    'smtp_host' => 'smtp.example.com',
+    'smtp_port' => 587,
+    'smtp_secure' => 'tls', // tls (STARTTLS), ssl (implicit TLS), or none
+    'smtp_user' => 'notifications@example.com',
+    'smtp_pass' => 'REPLACE_WITH_SMTP_APP_PASSWORD',
+    'from_email' => 'notifications@example.com',
+    'from_name' => 'Teacher Attendance',
+    'timeout' => 15,
+];

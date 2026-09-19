@@ -8,49 +8,8 @@ declare(strict_types=1);
  * A stricter script policy reports violations in the browser without blocking.
  */
 
-function app_configured_api_base(): string {
-    $raw = rtrim(trim((string)(getenv('APP_API_BASE') ?: '')), '/');
-    if ($raw === '') return '';
-
-    $parts = parse_url($raw);
-    if (!is_array($parts)
-        || !in_array(strtolower((string)($parts['scheme'] ?? '')), ['https', 'http'], true)
-        || empty($parts['host'])
-        || isset($parts['user'], $parts['pass'], $parts['query'], $parts['fragment'])) {
-        return '';
-    }
-
-    $base = strtolower((string)$parts['scheme']) . '://' . $parts['host'];
-    if (isset($parts['port'])) $base .= ':' . (int)$parts['port'];
-    $path = trim((string)($parts['path'] ?? ''));
-    return $base . ($path === '' || $path === '/' ? '' : '/' . ltrim($path, '/'));
-}
-
-function app_configured_api_origin(): string {
-    $base = app_configured_api_base();
-    if ($base === '') {
-        $base = rtrim(trim((string)(getenv('APP_API_ORIGIN') ?: '')), '/');
-    }
-    if ($base === '') return '';
-
-    $parts = parse_url($base);
-    if (!is_array($parts) || !in_array(strtolower((string)($parts['scheme'] ?? '')), ['https', 'http'], true) || empty($parts['host'])) {
-        return '';
-    }
-
-    $origin = strtolower((string)$parts['scheme']) . '://' . $parts['host'];
-    if (isset($parts['port'])) $origin .= ':' . (int)$parts['port'];
-    return $origin;
-}
-
 function app_content_security_policy(): string {
-    // A tunnel frontend can intentionally call an API on another HTTPS origin.
-    // This remains self-only unless APP_API_ORIGIN is explicitly configured.
-    $connectSources = "'self' blob: data: https://www.gstatic.com https://cdn.jsdelivr.net";
-    $apiOrigin = app_configured_api_origin();
-    if ($apiOrigin !== '') $connectSources .= ' ' . $apiOrigin;
-
-    return "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://rawcdn.githack.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; connect-src {$connectSources}; worker-src 'self' blob:; media-src 'self' data: blob:; frame-src 'self' blob:; manifest-src 'self'";
+    return "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://rawcdn.githack.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; connect-src 'self' blob: data: https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self' blob:; media-src 'self' data: blob:; frame-src 'self' blob:; manifest-src 'self'";
 }
 
 function app_http_request_host(): string {
@@ -151,9 +110,7 @@ function app_apply_http_security(array $security = []): void {
     // JavaScript, styles, API connections, imports, push, or 3D resources.
     $csp = app_content_security_policy();
     header('Content-Security-Policy: ' . $csp);
-    // Do not send a second, knowingly incompatible report-only policy. The
-    // runtime still has inline bootstrap/fallback handlers, and that policy
-    // created misleading console violations despite the enforced policy.
+    header('Content-Security-Policy-Report-Only: ' . str_replace(" 'unsafe-inline' 'unsafe-eval'", '', $csp));
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     header('X-Frame-Options: SAMEORIGIN');

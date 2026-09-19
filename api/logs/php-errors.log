@@ -36,3 +36,42 @@ the VAPID credentials in the authorization header do not correspond to the crede
 [14-Sep-2026 10:46:49 Asia/Manila] [web_push] delivery failed: Client error: `POST https://fcm.googleapis.com/fcm/send/ehAz8PKHvC4:APA91bFSTkB5Ot2cOUM0750NZEi_iNC9aI4YZUdqs6ay8Z9OiAYMeIzDsv2DhPkbfZlqoKbz-N7OjdAK0OhczeSPMmGtmwQjUEtRz5dehFzuhSxvARikEqUYZuN1SOeM4oma5-8pb_a9` resulted in a `403 Forbidden` response:
 the VAPID credentials in the authorization header do not correspond to the credentials used to create the subscriptions. (truncated...)
 
+[20-Sep-2026 04:20:52 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:20:52 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:20:52 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'p.sub_name' in 'field list'
+[20-Sep-2026 04:20:52 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:20:52 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:20:52 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:12 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:21:12 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:16 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:21:16 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:20 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'p.sub_name' in 'field list'
+[20-Sep-2026 04:21:20 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:20 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:21:20 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:20 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Duplicate column name 'manual_code'
+[20-Sep-2026 04:21:20 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Duplicate column name 'manual_code'
+[20-Sep-2026 04:21:20 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Duplicate column name 'manual_code'
+[20-Sep-2026 04:21:20 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:20 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:20 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:20 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:21:20 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:20 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Duplicate column name 'model_updated_by'
+[20-Sep-2026 04:21:20 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:48 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:21:48 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'p.sub_name' in 'field list'
+[20-Sep-2026 04:21:48 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:48 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:21:48 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:21:48 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:22:03 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:22:03 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:22:21 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:22:21 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:26:49 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:26:49 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:26:51 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
+[20-Sep-2026 04:26:51 Asia/Manila] [api server error] error: "internal_server_error"
+[20-Sep-2026 04:43:23 Asia/Manila] [forgot-password] Failed to send OTP email to chbe.bantayao.coc@phinmaed.com

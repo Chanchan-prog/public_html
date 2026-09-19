@@ -17,16 +17,13 @@ function app_style_source_fingerprint(string $root): string {
 }
 
 function app_apply_generated_styles(string $html, string $root): string {
-    // Support both the flattened web-root upload and the sibling
-    // front-end/api layout used by this repository.
-    $appRoot = $root;
-    if (!is_dir($appRoot . '/src') && is_dir($root . '/front-end/src')) {
-        $appRoot = $root . '/front-end';
-    }
-    $directory = $appRoot . '/public/vendor/tailwind';
-    // The generated stylesheet is served as a normal versioned static asset.
-    // Re-hashing every JSX/CSS source file here does not regenerate it and was
-    // needlessly blocking each initial HTML response.
-    $tag = '<link rel="stylesheet" href="vendor/tailwind/generated.min.css" data-tailwind-mode="generated">';
+    $directory = $root . '/public/vendor/tailwind';
+    $manifest = is_file($directory . '/generated-manifest.json') ? json_decode(file_get_contents($directory . '/generated-manifest.json'), true) : null;
+    $valid = is_array($manifest) && is_file($directory . '/generated.min.css')
+        && hash_equals((string)($manifest['source_hash'] ?? ''), app_style_source_fingerprint($root))
+        && hash_equals((string)($manifest['css_hash'] ?? ''), hash_file('sha256', $directory . '/generated.min.css'));
+    $tag = $valid
+        ? '<link rel="stylesheet" href="vendor/tailwind/generated.min.css" data-tailwind-mode="generated">'
+        : '<script src="vendor/tailwind/tailwindcss.js" data-tailwind-mode="automatic-fallback"></script>';
     return str_replace('<!-- APP_TAILWIND_STYLES -->', $tag, $html);
 }

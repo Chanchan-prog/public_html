@@ -151,6 +151,27 @@ function push_remove_endpoint($mysqli, $endpoint) {
 }
 
 /**
+ * A VAPID key rotation makes the affected browser subscription permanently
+ * unusable. FCM returns 403 rather than an "expired" response, so remove it
+ * and let the signed-in browser register again with the current server key.
+ */
+function push_delivery_requires_resubscribe($reason) {
+    $text = strtolower((string)$reason);
+    return strpos($text, 'vapid credentials') !== false
+        || strpos($text, 'authorization header do not correspond') !== false
+        || strpos($text, 'vapid key') !== false;
+}
+
+function push_safe_delivery_reason($reason) {
+    $text = trim((string)$reason);
+    // Push endpoints are device-specific identifiers and do not need to be
+    // retained in application logs just to diagnose a provider response.
+    $text = preg_replace('~https?://[^\\s`]+~i', '[push endpoint]', $text);
+    $text = preg_replace('/\\s+/', ' ', (string)$text);
+    return substr((string)$text, 0, 500);
+}
+
+/**
  * Convert a saved application route into a same-origin hash URL.
  * External URLs, protocol-relative URLs, backslashes, and control characters
  * are rejected so a notification cannot be used as an open redirect.
@@ -170,71 +191,30 @@ function push_notification_target_url($link, $notificationId) {
     return './#' . $route;
 }
 
-/**
- * Log a deployment problem only once per request so a missing key or vendor
- * directory does not flood the error log for every notification.
- */
-function push_log_once($key, $message) {
-    static $logged = [];
-    if (isset($logged[$key])) return;
-    $logged[$key] = true;
-    error_log($message);
-}
-
-/**
- * Short, non-reversible identifier used in logs instead of the full push
- * endpoint, which contains a per-device delivery token.
- */
-function push_endpoint_id($endpoint) {
-    $value = trim((string)$endpoint);
-    return $value === '' ? '' : substr(hash('sha256', $value), 0, 12);
-}
-
-function push_subscription_rows($mysqli, $userId) {
+function push_send_notification($mysqli, $userId, $notificationId, $title, $message, $link = '') {
     $uid = (int)$userId;
-    if ($uid <= 0 || !push_schema_exists($mysqli)) return [];
+    // Do not run schema DDL from notification creation because callers may be
+    // inside a business transaction. Subscription endpoints create the table.
+    if ($uid <= 0 || !push_is_configured() || !push_schema_exists($mysqli)) return 0;
+    $autoload = __DIR__ . '/../vendor/autoload.php';
+    if (!file_exists($autoload)) return 0;
+    push_prepare_openssl_config();
+    $encryptionFile = __DIR__ . '/../vendor/minishlink/web-push/src/Encryption.php';
+    if (function_exists('opcache_invalidate') && is_file($encryptionFile)) {
+        @opcache_invalidate($encryptionFile, true);
+    }
+    require_once $autoload;
+
     $stmt = $mysqli->prepare("SELECT endpoint, p256dh, auth_token, content_encoding
         FROM tbl_push_subscriptions WHERE user_id = ? ORDER BY updated_at DESC");
-    if (!$stmt) return [];
+    if (!$stmt) return 0;
     $stmt->bind_param('i', $uid);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
-    return $rows;
-}
+    if (empty($rows)) return 0;
 
-function push_build_payload($notificationId, $title, $message, $link = '') {
-    $cleanLink = trim((string)$link);
-    return [
-        'title' => trim((string)$title) ?: 'New notification',
-        'body' => trim((string)$message),
-        'notif_id' => (int)$notificationId,
-        'link' => $cleanLink,
-        'url' => push_notification_target_url($cleanLink, $notificationId),
-        'icon' => './cdoc-logo.png?v=lossless-20260911',
-        'badge' => './cdoc-logo.png?v=lossless-20260911',
-        'tag' => 'notification-' . (int)$notificationId,
-    ];
-}
-
-/**
- * Deliver one payload to the supplied subscription rows.
- *
- * A permanent rejection (subscription gone or revoked, or signed for a VAPID
- * key this server no longer uses) is removed from the database so the
- * signed-in browser re-registers itself on its next sync instead of failing
- * on every future notification.
- *
- * @return array{sent:int,failed:int,removed:int,reports:array<int,array<string,mixed>>}
- */
-function push_dispatch_payload($mysqli, array $rows, array $payload, $config = null) {
-    $result = ['sent' => 0, 'failed' => 0, 'removed' => 0, 'reports' => []];
-    if (empty($rows)) return $result;
-    if (!is_array($config)) $config = push_config();
-
-    $payloadJson = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    if ($payloadJson === false) return $result;
-
+    $config = push_config();
     try {
         $webPush = new WebPush([
             'VAPID' => [
@@ -248,106 +228,41 @@ function push_dispatch_payload($mysqli, array $rows, array $payload, $config = n
             'batchSize' => 100,
         ], 8);
         $webPush->setReuseVAPIDHeaders(true);
+        $cleanLink = trim((string)$link);
+        $payload = json_encode([
+            'title' => trim((string)$title) ?: 'New notification',
+            'body' => trim((string)$message),
+            'notif_id' => (int)$notificationId,
+            'link' => $cleanLink,
+            'url' => push_notification_target_url($cleanLink, $notificationId),
+            'icon' => './cdoc-logo.png?v=lossless-20260911',
+            'badge' => './cdoc-logo.png?v=lossless-20260911',
+            'tag' => 'notification-' . (int)$notificationId,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         foreach ($rows as $row) {
-            $endpoint = trim((string)($row['endpoint'] ?? ''));
-            if ($endpoint === '') continue;
             $subscription = Subscription::create([
-                'endpoint' => $endpoint,
-                'publicKey' => (string)($row['p256dh'] ?? ''),
-                'authToken' => (string)($row['auth_token'] ?? ''),
-                'contentEncoding' => ($row['content_encoding'] ?? '') ?: 'aes128gcm',
+                'endpoint' => $row['endpoint'],
+                'publicKey' => $row['p256dh'],
+                'authToken' => $row['auth_token'],
+                'contentEncoding' => $row['content_encoding'] ?: 'aes128gcm',
             ]);
-            $webPush->queueNotification($subscription, $payloadJson);
+            $webPush->queueNotification($subscription, $payload);
         }
 
+        $sent = 0;
         foreach ($webPush->flush() as $report) {
-            $endpoint = (string)$report->getEndpoint();
-            $endpointId = push_endpoint_id($endpoint);
-            $response = $report->getResponse();
-            $statusCode = (int)($response ? $response->getStatusCode() : 0);
-            $reason = (string)$report->getReason();
-
             if ($report->isSuccess()) {
-                $result['sent']++;
-                $result['reports'][] = [
-                    'endpoint_id' => $endpointId,
-                    'status' => $statusCode,
-                    'ok' => true,
-                    'removed' => false,
-                    'reason' => 'ok',
-                ];
-                continue;
-            }
-
-            $result['failed']++;
-            $permanent = $report->isSubscriptionExpired()
-                || in_array($statusCode, [400, 401, 403, 413], true);
-            if ($permanent) {
-                push_remove_endpoint($mysqli, $endpoint);
-                $result['removed']++;
-                error_log('[web_push] removed unusable subscription endpoint_id=' . $endpointId
-                    . ' status=' . $statusCode . ' reason=' . $reason);
+                $sent++;
+            } elseif ($report->isSubscriptionExpired() || push_delivery_requires_resubscribe($report->getReason())) {
+                push_remove_endpoint($mysqli, $report->getEndpoint());
             } else {
-                error_log('[web_push] delivery failed endpoint_id=' . $endpointId
-                    . ' status=' . $statusCode . ' reason=' . $reason);
+                error_log('[web_push] delivery failed: ' . push_safe_delivery_reason($report->getReason()));
             }
-            $result['reports'][] = [
-                'endpoint_id' => $endpointId,
-                'status' => $statusCode,
-                'ok' => false,
-                'removed' => $permanent,
-                'reason' => $reason,
-            ];
         }
+        return $sent;
     } catch (Throwable $error) {
         error_log('[web_push] exception: ' . $error->getMessage());
-        $result['reports'][] = [
-            'endpoint_id' => '',
-            'status' => 0,
-            'ok' => false,
-            'removed' => false,
-            'reason' => $error->getMessage(),
-        ];
-    }
-
-    return $result;
-}
-
-function push_send_notification($mysqli, $userId, $notificationId, $title, $message, $link = '') {
-    $uid = (int)$userId;
-    if ($uid <= 0) return 0;
-
-    // Do not run schema DDL from notification creation because callers may be
-    // inside a business transaction. Subscription endpoints create the table.
-    if (!push_is_configured()) {
-        push_log_once('not_configured', '[web_push] skipped: VAPID subject, public key or private key is missing in api/config/private-security.php.');
         return 0;
     }
-    if (!push_schema_exists($mysqli)) {
-        push_log_once('no_schema', '[web_push] skipped: tbl_push_subscriptions is missing. Open the Notifications page once so the table is created.');
-        return 0;
-    }
-    $autoload = __DIR__ . '/../vendor/autoload.php';
-    if (!file_exists($autoload)) {
-        push_log_once('no_autoload', '[web_push] skipped: ' . $autoload . ' is missing. Upload api/vendor to the server.');
-        return 0;
-    }
-    push_prepare_openssl_config();
-    $encryptionFile = __DIR__ . '/../vendor/minishlink/web-push/src/Encryption.php';
-    if (function_exists('opcache_invalidate') && is_file($encryptionFile)) {
-        @opcache_invalidate($encryptionFile, true);
-    }
-    require_once $autoload;
-
-    $rows = push_subscription_rows($mysqli, $uid);
-    if (empty($rows)) return 0;
-
-    $result = push_dispatch_payload(
-        $mysqli,
-        $rows,
-        push_build_payload($notificationId, $title, $message, $link),
-        push_config()
-    );
-    return (int)$result['sent'];
 }

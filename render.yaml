@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: public-html
-    runtime: docker
-    rootDir: .
-    plan: free
-    envVars:
-      - key: PORT
-        value: 10000

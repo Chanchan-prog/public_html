@@ -38,19 +38,6 @@ $requestScheme = app_http_is_https_request() ? 'https' : 'http';
 $requestOrigin = $requestHost !== '' ? $normalize($requestScheme . '://' . $requestHost) : '';
 $originMatchesRequest = $origin !== '' && $requestOrigin !== '' && hash_equals($requestOrigin, $origin);
 
-// A tunnel frontend may use a separately hosted API during testing. Keep this
-// opt-in and exact: APP_CORS_ORIGINS is a comma-separated list of full origins
-// (for example https://your-tunnel.devtunnels.ms), never a wildcard.
-$configuredCorsOrigins = [];
-$corsConfig = trim((string)(getenv('APP_CORS_ORIGINS') ?: ''));
-if ($corsConfig !== '') {
-    foreach (explode(',', $corsConfig) as $candidate) {
-        $candidate = $normalize(trim($candidate));
-        if ($candidate !== '') $configuredCorsOrigins[$candidate] = true;
-    }
-}
-$originMatchesConfiguredCors = $origin !== '' && isset($configuredCorsOrigins[$origin]);
-
 // Dev Tunnels forwards the public hostname separately and rewrites the
 // browser's same-origin Origin header to its local HTTP target. Accept that
 // rewritten value only for a verified localhost -> *.devtunnels.ms request.
@@ -67,28 +54,15 @@ if ($origin !== '' && app_http_is_trusted_dev_tunnel_request()) {
 // cross-origin requests instead of maintaining a CORS allowlist or falling
 // back to a wildcard. Requests without Origin (CLI, cron, direct navigation)
 // remain available and are still protected by authentication where required.
-if ($origin !== '' && !$originMatchesRequest && !$originMatchesTunnelTarget && !$originMatchesConfiguredCors) {
+if ($origin !== '' && !$originMatchesRequest && !$originMatchesTunnelTarget) {
     http_response_code(403);
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode(['error' => 'cross_origin_request_denied']);
     exit;
 }
 
-// Same-origin requests do not require CORS headers. An explicitly allowlisted
-// tunnel origin does, and credentials are intentionally limited to that exact
-// value rather than reflected for arbitrary callers.
-if ($originMatchesConfiguredCors) {
-    header('Access-Control-Allow-Origin: ' . $origin);
-    header('Access-Control-Allow-Credentials: true');
-    header('Vary: Origin');
-}
-
+// Same-origin requests do not require CORS headers or browser preflights.
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    if ($originMatchesConfiguredCors) {
-        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, X-User-Activity-At');
-        header('Access-Control-Max-Age: 600');
-    }
     http_response_code(200);
     exit;
 }
@@ -130,12 +104,6 @@ function resolve_module_requirement($endpointRoot, $requestMethod, $param1, $par
     $authUserId = isset($authPayload['user_id']) ? (int)$authPayload['user_id'] : 0;
 
     switch ($endpoint) {
-        case 'cron':
-            // The scheduler endpoint authenticates with its own secret token so
-            // hosts without PHP CLI cron (Vercel Cron, external cron services)
-            // can still trigger attendance and notification work.
-            return null;
-
         case 'login':
         case 'forgot-password':
         case 'reset-password':
@@ -357,9 +325,6 @@ switch ($endpoint_root) {
         break;
     case 'check-contact':
         require_once __DIR__ . '/api/main.php';
-        break;
-    case 'cron':
-        require_once __DIR__ . '/api/cron.php';
         break;
     case 'login':
         require_once __DIR__ . '/api/login.php';

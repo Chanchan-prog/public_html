@@ -1,34 +1,33 @@
 <?php
 // api/config/mail.php
-// Email delivery settings.
+// Configure SMTP so OTP emails are sent. On XAMPP/Windows, PHP mail() does not send real email.
 //
-// XAMPP/Windows has no local mail transport, so OTP and notification emails are
-// sent over SMTP when smtp_user + smtp_pass are filled in.
-//
-// Hosting that blocks outbound SMTP ports (25/465/587) still works with
-// transport "mail", and with "auto" the application tries SMTP first and then
-// the server's own mail transport (cPanel Exim), which sends from your domain.
-//
-// Every value below can also come from the environment, which keeps real
-// credentials out of source control: MAIL_TRANSPORT, MAIL_SMTP_HOST,
-// MAIL_SMTP_PORT, MAIL_SMTP_SECURE, MAIL_SMTP_USER, MAIL_SMTP_PASS,
-// MAIL_FROM_EMAIL, MAIL_FROM_NAME and MAIL_FROM.
-//
-// Credentials must be supplied through environment variables on the deployed
-// host. Do not put a mailbox password in this file: a source deployment or
-// backup can expose it and Gmail will reject or revoke the app password.
-//
-// Gmail App Password: Google Account -> Security -> 2-Step Verification -> App passwords.
-//
-// No Composer or PHPMailer is required.
+// No Composer needed. Fill in smtp_user and smtp_pass (Gmail App Password) and OTP emails will send via SMTP.
+// Gmail App Password: Google Account → Security → 2-Step Verification → App passwords.
+// Never place a real SMTP password in this tracked file. cPanel PHP processes
+// may not inherit website environment variables, so a server-only
+// private-mail.php file is supported too. See private-mail.php.example.
+$mailPrivateFile = __DIR__ . '/private-mail.php';
+$mailPrivate = is_file($mailPrivateFile) ? require $mailPrivateFile : [];
+if (!is_array($mailPrivate)) $mailPrivate = [];
+
+$mailValue = static function (string $environmentName, string $privateKey, $default = '') use ($mailPrivate) {
+    $environmentValue = getenv($environmentName);
+    if ($environmentValue !== false) return $environmentValue;
+    if (array_key_exists($privateKey, $mailPrivate)) return $mailPrivate[$privateKey];
+    return $default;
+};
+
+$smtpSecure = strtolower(trim((string)$mailValue('MAIL_SMTP_SECURE', 'smtp_secure', 'tls')));
+if (!in_array($smtpSecure, ['tls', 'ssl', 'none'], true)) $smtpSecure = 'tls';
+
 return [
-    // smtp = SMTP only, mail = local server transport, auto = SMTP then local.
-    'transport'   => getenv('MAIL_TRANSPORT') ?: 'auto',
-    'smtp_host'   => getenv('MAIL_SMTP_HOST')   ?: 'smtp.gmail.com',
-    'smtp_port'   => (int) (getenv('MAIL_SMTP_PORT')   ?: 587),
-    'smtp_secure' => getenv('MAIL_SMTP_SECURE') ?: 'tls',
-    'smtp_user'   => getenv('MAIL_SMTP_USER')   ?: '',
-    'smtp_pass'   => getenv('MAIL_SMTP_PASS')   ?: '',
-    'from_email'  => getenv('MAIL_FROM_EMAIL')  ?: '',
-    'from_name'   => getenv('MAIL_FROM_NAME')  ?: 'Teacher Attendance',
+    'smtp_host' => trim((string)$mailValue('MAIL_SMTP_HOST', 'smtp_host', '')),
+    'smtp_port' => (int)$mailValue('MAIL_SMTP_PORT', 'smtp_port', 587),
+    'smtp_secure' => $smtpSecure,
+    'smtp_user' => trim((string)$mailValue('MAIL_SMTP_USER', 'smtp_user', '')),
+    'smtp_pass' => (string)$mailValue('MAIL_SMTP_PASS', 'smtp_pass', ''),
+    'from_email' => trim((string)$mailValue('MAIL_FROM_EMAIL', 'from_email', '')),
+    'from_name' => trim((string)$mailValue('MAIL_FROM_NAME', 'from_name', 'Teacher Attendance')),
+    'timeout' => max(1, min(60, (int)$mailValue('MAIL_SMTP_TIMEOUT', 'timeout', 15))),
 ];
