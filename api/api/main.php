@@ -1167,6 +1167,20 @@ switch ($endpoint) {
             $roleMap['dept_admin'] = $roleMap['department_admin'];
             $roleMap['deptadmin'] = $roleMap['department_admin'];
 
+            $hasDeptSubNameCol = false;
+            $deptSubNameCheck = $mysqli->query("SHOW COLUMNS FROM tbl_departments LIKE 'sub_name'");
+            if ($deptSubNameCheck) {
+                $hasDeptSubNameCol = $deptSubNameCheck->num_rows > 0;
+                $deptSubNameCheck->free();
+            }
+
+            $hasProgramSubNameCol = false;
+            $programSubNameCheck = $mysqli->query("SHOW COLUMNS FROM tbl_programs LIKE 'sub_name'");
+            if ($programSubNameCheck) {
+                $hasProgramSubNameCol = $programSubNameCheck->num_rows > 0;
+                $programSubNameCheck->free();
+            }
+
             $deptLookup = [];
             $activeDeptIds = [];
             $formatAcademicLabel = function($subName, $fullName) {
@@ -1176,7 +1190,8 @@ switch ($endpoint) {
                 if ($full === '' || strcasecmp($sub, $full) === 0) return $sub;
                 return $sub . ' (' . $full . ')';
             };
-            $deptRes = $mysqli->query("SELECT dept_id, sub_name, dept_name FROM tbl_departments WHERE LOWER(TRIM(COALESCE(status, ''))) = 'active'");
+            $deptQuery = "SELECT dept_id, " . ($hasDeptSubNameCol ? 'sub_name' : 'dept_name AS sub_name') . ", dept_name FROM tbl_departments WHERE LOWER(TRIM(COALESCE(status, ''))) = 'active'";
+            $deptRes = $mysqli->query($deptQuery);
             if ($deptRes) {
                 while ($dr = $deptRes->fetch_assoc()) {
                     $did = (int)($dr['dept_id'] ?? 0);
@@ -1196,7 +1211,8 @@ switch ($endpoint) {
             $programById = [];
             $generalProgramByDept = [];
             if ($hasAssignedProgramHeadCol) {
-                $programRes = $mysqli->query("SELECT p.program_id, p.sub_name, p.program_name, p.dept_id, p.head_id FROM tbl_programs p JOIN tbl_departments d ON d.dept_id = p.dept_id WHERE LOWER(TRIM(COALESCE(p.status, ''))) = 'active' AND LOWER(TRIM(COALESCE(d.status, ''))) = 'active'");
+                $programQuery = "SELECT p.program_id, " . ($hasProgramSubNameCol ? 'p.sub_name' : 'p.program_name AS sub_name') . ", p.program_name, p.dept_id, p.head_id FROM tbl_programs p JOIN tbl_departments d ON d.dept_id = p.dept_id WHERE LOWER(TRIM(COALESCE(p.status, ''))) = 'active' AND LOWER(TRIM(COALESCE(d.status, ''))) = 'active'";
+                $programRes = $mysqli->query($programQuery);
                 if ($programRes) {
                     while ($pr = $programRes->fetch_assoc()) {
                         $programId = (int)($pr['program_id'] ?? 0);
