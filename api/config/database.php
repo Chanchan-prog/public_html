@@ -30,11 +30,11 @@ $isWindowsDevelopment = DIRECTORY_SEPARATOR === '\\';
 $developmentEnvironment = in_array(strtolower((string)getenv('APP_ENV')), ['local', 'development', 'dev'], true);
 $allowDevelopmentDefaults = $isWindowsDevelopment || $developmentEnvironment;
 
-$db_host = trim((string)$databaseValue('DB_HOST', 'host', 'localhost'));
-$db_port = (int)$databaseValue('DB_PORT', 'port', 3306);
-$db_user = trim((string)$databaseValue('DB_USER', 'user', $allowDevelopmentDefaults ? 'root' : ''));
-$db_pass = (string)$databaseValue('DB_PASS', 'pass', '');
-$db_name = trim((string)$databaseValue('DB_NAME', 'name', $allowDevelopmentDefaults ? 'bk_teacher_gps3' : ''));
+$db_host = trim((string)$databaseValue('DB_HOST', 'host', 'db.fr-roub1.bengt.wasmernet.com'));
+$db_port = (int)$databaseValue('DB_PORT', 'port', 20184);
+$db_user = trim((string)$databaseValue('DB_USER', 'user', $allowDevelopmentDefaults ? 'root' : 'user_720eaff7'));
+$db_pass = (string)$databaseValue('DB_PASS', 'pass', 'pw_e4JfJFghNxOeTMWSaSikaj9P6gziTZtm');
+$db_name = trim((string)$databaseValue('DB_NAME', 'name', $allowDevelopmentDefaults ? 'bk_teacher_gps3' : 'bk_teacher_gps3'));
 
 try {
   if ($db_host === '' || $db_user === '' || $db_name === '') {
