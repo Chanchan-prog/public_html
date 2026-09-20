@@ -1,5 +1,29 @@
 <?php
 declare(strict_types=1);
+// Railway's PHP runtime (Railpack/FrankenPHP) serves every request through this
+// file: its generated Caddyfile uses `php_server`, which rewrites requests such
+// as /api/login to the frontend /index.php instead of api/index.php. Caddy does
+// not honor the Apache .htaccess rules that normally route /api/* to the API
+// controller, so without this dispatch API calls received the SPA's HTML (no
+// JSON), which is what shows up in Caddy logs as "rewrote request ... /index.php".
+// Detect any path that contains an `api` path segment and hand it to the API
+// front controller, which parses the original REQUEST_URI itself.
+$requestPath = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+$requestPath = '/' . ltrim(str_replace('\\', '/', $requestPath), '/');
+if (preg_match('#(?:^|/)api(?:/|$)#i', $requestPath)) {
+    $apiIndex = __DIR__ . '/api/index.php';
+    if (!is_file($apiIndex)) {
+        $apiIndex = __DIR__ . '/../api/index.php';
+    }
+    if (is_file($apiIndex)) {
+        require $apiIndex;
+    } else {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode(['error' => 'API entry point is missing.']);
+    }
+    exit;
+}
 
 // The frontend is developed beside the API, but some deployments place the
 // API inside the frontend document root. Support both layouts so the PHP entry
