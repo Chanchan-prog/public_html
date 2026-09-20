@@ -1,5 +1,6 @@
 {
   "require": {
+    "ext-mysqli": "*",
     "endroid/qr-code": "^6.0",
     "minishlink/web-push": "^9.0"
   },

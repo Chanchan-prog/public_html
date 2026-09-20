@@ -45,6 +45,9 @@ $db_pass = (string)$databaseValueAlias('pass');
 $db_name = trim((string)$databaseValueAlias('name'));
 
 try {
+  if (!extension_loaded('mysqli')) {
+    throw new RuntimeException('The mysqli PHP extension is not installed. Add ext-mysqli to composer.json or set RAILPACK_PHP_EXTENSIONS=mysqli.');
+  }
   if ($db_host === '' || $db_user === '' || $db_name === '') {
     throw new RuntimeException('Database configuration is missing. In Railway, link the MySQL service so MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD and MYSQLDATABASE are injected. Otherwise set DB_HOST, DB_PORT, DB_NAME, DB_USER and DB_PASS.');
   }
