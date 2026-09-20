@@ -243,6 +243,18 @@ switch ($endpoint) {
         };
         $assignedHeadColCheck = $mysqli->query("SHOW COLUMNS FROM tbl_users LIKE 'assigned_program_head_id'");
         $hasAssignedProgramHeadCol = $assignedHeadColCheck && $assignedHeadColCheck->num_rows > 0;
+        $hasDeptSubNameCol = false;
+        $deptSubNameCheck = $mysqli->query("SHOW COLUMNS FROM tbl_departments LIKE 'sub_name'");
+        if ($deptSubNameCheck) {
+            $hasDeptSubNameCol = $deptSubNameCheck->num_rows > 0;
+            $deptSubNameCheck->free();
+        }
+        $hasProgramSubNameCol = false;
+        $programSubNameCheck = $mysqli->query("SHOW COLUMNS FROM tbl_programs LIKE 'sub_name'");
+        if ($programSubNameCheck) {
+            $hasProgramSubNameCol = $programSubNameCheck->num_rows > 0;
+            $programSubNameCheck->free();
+        }
 
         $validateAssignedProgramHead = function($programId, $deptId, $requireOwner = false) use ($mysqli) {
             $pq = $mysqli->prepare("SELECT p.program_id, p.dept_id, p.head_id, p.status AS program_status, d.status AS department_status, u.role_id, u.status AS head_status FROM tbl_programs p LEFT JOIN tbl_departments d ON p.dept_id = d.dept_id LEFT JOIN tbl_users u ON p.head_id = u.user_id WHERE p.program_id = ? LIMIT 1");
@@ -618,12 +630,12 @@ switch ($endpoint) {
                 $listAssignedProgramSelect = $hasAssignedProgramHeadCol
                     ? ", assigned_program_head_id, assigned_program_head_id AS assigned_program_id,
                         (SELECT p.program_name FROM tbl_programs p WHERE p.program_id = tbl_users.assigned_program_head_id LIMIT 1) AS assigned_program_name,
-                        (SELECT p.sub_name FROM tbl_programs p WHERE p.program_id = tbl_users.assigned_program_head_id LIMIT 1) AS assigned_program_sub_name"
+                        (SELECT " . ($hasProgramSubNameCol ? 'p.sub_name' : 'p.program_name') . " FROM tbl_programs p WHERE p.program_id = tbl_users.assigned_program_head_id LIMIT 1) AS assigned_program_sub_name"
                     : ", NULL AS assigned_program_head_id, NULL AS assigned_program_id, NULL AS assigned_program_name, NULL AS assigned_program_sub_name";
                 $sql = "SELECT user_id, first_name, last_name, id_number, dept_id, role_id, status
                         {$listAssignedProgramSelect},
                         (SELECT d.dept_name FROM tbl_departments d WHERE d.dept_id = tbl_users.dept_id LIMIT 1) AS dept_name,
-                        (SELECT d.sub_name FROM tbl_departments d WHERE d.dept_id = tbl_users.dept_id LIMIT 1) AS department_sub_name
+                        (SELECT " . ($hasDeptSubNameCol ? 'd.sub_name' : 'd.dept_name') . " FROM tbl_departments d WHERE d.dept_id = tbl_users.dept_id LIMIT 1) AS department_sub_name
                         FROM tbl_users WHERE " . ($includeInactive
                             ? "LOWER(TRIM(COALESCE(status, ''))) NOT IN ('archive', 'archived')"
                             : "LOWER(TRIM(COALESCE(status, ''))) IN ('active', '1', 'true')");
@@ -808,7 +820,7 @@ switch ($endpoint) {
                 ? ", u.assigned_program_head_id, CONCAT_WS(' ', aph.first_name, aph.last_name) AS assigned_program_head_name"
                 : ", NULL AS assigned_program_head_id, NULL AS assigned_program_head_name";
             $selectAssignedProgram = $hasAssignedProgramHeadCol
-                ? ", phead.program_id AS assigned_program_id, phead.program_name AS assigned_program_name, phead.sub_name AS assigned_program_sub_name"
+                ? ", phead.program_id AS assigned_program_id, phead.program_name AS assigned_program_name, " . ($hasProgramSubNameCol ? 'phead.sub_name' : 'phead.program_name') . " AS assigned_program_sub_name"
                 : ", NULL AS assigned_program_id, NULL AS assigned_program_name, NULL AS assigned_program_sub_name";
             $joinAssignedProgram = $hasAssignedProgramHeadCol
                 ? " LEFT JOIN tbl_programs phead ON u.assigned_program_head_id = phead.program_id LEFT JOIN tbl_users aph ON phead.head_id = aph.user_id "
@@ -832,7 +844,8 @@ switch ($endpoint) {
                     ORDER BY label_sem.semester_id DESC
                     LIMIT 1
                 ) AS active_schedule_label";
-            $sql = "SELECT u.user_id, u.role_id, u.first_name, u.last_name, u.email, u.contact_no, u.image AS avatar, u.id_number, u.dept_id, d.dept_name, d.sub_name AS department_sub_name, r.role_name, u.status, u.is_first_login{$selectAssignedHead}{$selectAssignedProgram}{$selectActiveSchedule} FROM tbl_users u LEFT JOIN tbl_departments d ON u.dept_id = d.dept_id JOIN tbl_roles r ON u.role_id = r.role_id{$joinAssignedProgram}";
+            $deptSubNameSelect = $hasDeptSubNameCol ? 'd.sub_name AS department_sub_name' : 'd.dept_name AS department_sub_name';
+            $sql = "SELECT u.user_id, u.role_id, u.first_name, u.last_name, u.email, u.contact_no, u.image AS avatar, u.id_number, u.dept_id, d.dept_name, {$deptSubNameSelect}, r.role_name, u.status, u.is_first_login{$selectAssignedHead}{$selectAssignedProgram}{$selectActiveSchedule} FROM tbl_users u LEFT JOIN tbl_departments d ON u.dept_id = d.dept_id JOIN tbl_roles r ON u.role_id = r.role_id{$joinAssignedProgram}";
             $types = '';
             $params = [];
             $moduleAccessTargetsOnly = isset($_GET['module_access_targets']) && (string)$_GET['module_access_targets'] === '1';
@@ -944,10 +957,11 @@ switch ($endpoint) {
                     $filteredParams[] = $deptFilter;
                 }
                 if ($search !== '') {
+                    $searchDeptNameSql = $hasDeptSubNameCol ? 'COALESCE(d.sub_name, \'\')' : 'COALESCE(d.dept_name, \'\')';
                     $searchProgramSql = $hasAssignedProgramHeadCol
-                        ? ", COALESCE(phead.program_name, ''), COALESCE(phead.sub_name, '')"
+                        ? ", COALESCE(phead.program_name, ''), " . ($hasProgramSubNameCol ? 'COALESCE(phead.sub_name, \'\')' : 'COALESCE(phead.program_name, \'\')')
                         : '';
-                    $filteredConditions[] = "CONCAT_WS(' ', COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), COALESCE(u.email, ''), COALESCE(u.id_number, ''), COALESCE(d.dept_name, ''), COALESCE(d.sub_name, ''){$searchProgramSql}) LIKE ?";
+                    $filteredConditions[] = "CONCAT_WS(' ', COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), COALESCE(u.email, ''), COALESCE(u.id_number, ''), COALESCE(d.dept_name, ''), {$searchDeptNameSql}{$searchProgramSql}) LIKE ?";
                     $filteredTypes .= 's';
                     $filteredParams[] = '%' . $search . '%';
                 }
@@ -995,7 +1009,7 @@ switch ($endpoint) {
                 $orderSql = $statusFilter === 'all'
                     ? " ORDER BY CASE {$normalizedStatusSql} WHEN 'active' THEN 0 WHEN 'inactive' THEN 1 ELSE 2 END, u.first_name, u.last_name, u.user_id"
                     : ' ORDER BY u.user_id DESC';
-                $dataSql = "SELECT u.user_id, u.role_id, u.first_name, u.last_name, u.email, u.contact_no, u.id_number, u.dept_id, d.dept_name, d.sub_name AS department_sub_name, r.role_name, u.status, u.is_first_login{$pagedAvatarSelect}{$selectAssignedHead}{$selectAssignedProgram}{$selectActiveSchedule}{$fromSql}{$filteredWhere}{$orderSql} LIMIT ? OFFSET ?";
+                $dataSql = "SELECT u.user_id, u.role_id, u.first_name, u.last_name, u.email, u.contact_no, u.id_number, u.dept_id, d.dept_name, " . ($hasDeptSubNameCol ? 'd.sub_name AS department_sub_name' : 'd.dept_name AS department_sub_name') . ", r.role_name, u.status, u.is_first_login{$pagedAvatarSelect}{$selectAssignedHead}{$selectAssignedProgram}{$selectActiveSchedule}{$fromSql}{$filteredWhere}{$orderSql} LIMIT ? OFFSET ?";
                 $dataTypes = $filteredTypes . 'ii';
                 $dataParams = array_merge($filteredParams, [$pageSize, $offset]);
                 $dataStmt = $mysqli->prepare($dataSql);
@@ -2294,12 +2308,20 @@ switch ($endpoint) {
             $logName = $logName === '' ? ($input['email'] ?? null) : $logName;
             $logMsg = $logName ? "Created new user: {$logName}" : "Created new user ID {$newId}";
             log_system_action($mysqli, $authUserId, 'create_user', $logMsg);
-            $emailResult = $sendAccountCreatedEmail(
-                $input['first_name'] ?? '',
-                $input['last_name'] ?? '',
-                $input['email'] ?? '',
-                $idNumberVal
-            );
+
+            $emailResult = ['sent' => false, 'error' => 'Mail helper unavailable'];
+            try {
+                $emailResult = $sendAccountCreatedEmail(
+                    $input['first_name'] ?? '',
+                    $input['last_name'] ?? '',
+                    $input['email'] ?? '',
+                    $idNumberVal
+                );
+            } catch (Throwable $mailException) {
+                error_log('[users/create] Account email exception: ' . $mailException->getMessage());
+                $emailResult = ['sent' => false, 'error' => 'Mail exception: ' . $mailException->getMessage()];
+            }
+
             $responsePayload = ['user_id' => $newId] + $input;
             $responsePayload['email_notification'] = [
                 'sent' => !empty($emailResult['sent'])
