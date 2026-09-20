@@ -1,0 +1,2 @@
+# Local database credentials; create this file from the example but never commit it.
+api/config/database.private.php

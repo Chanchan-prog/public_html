@@ -75,3 +75,5 @@ the VAPID credentials in the authorization header do not correspond to the crede
 [20-Sep-2026 04:26:51 Asia/Manila] [unhandled API exception] mysqli_sql_exception: Unknown column 'd.sub_name' in 'field list'
 [20-Sep-2026 04:26:51 Asia/Manila] [api server error] error: "internal_server_error"
 [20-Sep-2026 04:43:23 Asia/Manila] [forgot-password] Failed to send OTP email to chbe.bantayao.coc@phinmaed.com
+[20-Sep-2026 19:48:52 Asia/Manila] [database connection] Access denied for user 'root'@'143.44.193.82' (using password: YES)
+[20-Sep-2026 19:49:15 Asia/Manila] [database connection] Access denied for user 'root'@'143.44.193.82' (using password: YES)
