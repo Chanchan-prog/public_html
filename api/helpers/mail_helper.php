@@ -21,6 +21,57 @@ function mail_helper_smtp_failure($stage, $detail = '') {
 }
 
 /**
+ * Send an email through Resend's HTTPS API. This is suitable for Railway
+ * Trial/Hobby deployments, where outbound SMTP is unavailable.
+ */
+function send_via_resend_api($to, $subject, $htmlBody, array $mailConfig) {
+    $apiKey = trim((string)($mailConfig['resend_api_key'] ?? ''));
+    $fromEmail = trim((string)($mailConfig['resend_from_email'] ?? ''));
+    $fromName = trim((string)($mailConfig['resend_from_name'] ?? 'Teacher Attendance'));
+    if ($apiKey === '' || !mail_helper_is_single_recipient($fromEmail)) {
+        return mail_helper_smtp_failure('Resend configuration', 'RESEND_API_KEY or RESEND_FROM_EMAIL is missing or invalid');
+    }
+    if (!function_exists('curl_init')) {
+        return mail_helper_smtp_failure('Resend configuration', 'the PHP cURL extension is not installed');
+    }
+
+    $from = $fromName !== '' ? $fromName . ' <' . $fromEmail . '>' : $fromEmail;
+    $payload = json_encode([
+        'from' => $from,
+        'to' => [trim((string)$to)],
+        'subject' => $subject,
+        'html' => $htmlBody,
+    ]);
+    if ($payload === false) return mail_helper_smtp_failure('Resend encoding');
+
+    $curl = curl_init('https://api.resend.com/emails');
+    curl_setopt_array($curl, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $apiKey,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 20,
+    ]);
+    $response = curl_exec($curl);
+    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+    if ($response === false || $status < 200 || $status >= 300) {
+        $detail = $error !== '' ? $error : 'HTTP ' . $status;
+        $body = is_string($response) ? json_decode($response, true) : null;
+        if (is_array($body) && !empty($body['message'])) {
+            $detail .= ': ' . (string)$body['message'];
+        }
+        return mail_helper_smtp_failure('Resend delivery', $detail);
+    }
+    return true;
+}
+
+/**
  * Send forgot-password OTP email.
  * Uses SMTP when configured in config/mail.php (smtp_user + smtp_pass), else PHP mail().
  *
@@ -233,6 +284,9 @@ function send_personal_notification_email($to, $firstName, $notificationType, $b
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
+        if (!empty($mailConfig['resend_api_key'])) {
+            return send_via_resend_api($to, $subject, $htmlBody, $mailConfig);
+        }
         $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
         if ($useSmtp) {
             return send_via_smtp_socket($recipient, $from, $subject, $htmlBody, $mailConfig);
