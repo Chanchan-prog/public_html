@@ -23,6 +23,28 @@ $databaseValue = static function (string $environmentName, string $privateKey, $
     return $default;
 };
 
+$databaseValueAlias = static function (string $privateKey, $default = '') use ($databasePrivate, $databaseValue) {
+    // Railway/Render MySQL services export standard MYSQLHOST / MYSQLPORT /
+    // MYSQLUSER / MYSQLPASSWORD / MYSQLDATABASE variables (the underscore form,
+    // e.g. MYSQL_HOST, is also common). Use them as a fallback behind the
+    // existing DB_* env vars and the private file so a plain Railway MySQL
+    // service connects without setting up extra DB_* variables.
+    $aliasMap = [
+        'host' => ['MYSQLHOST', 'MYSQL_HOST'],
+        'port' => ['MYSQLPORT', 'MYSQL_PORT'],
+        'user' => ['MYSQLUSER', 'MYSQL_USER'],
+        'pass' => ['MYSQLPASSWORD', 'MYSQL_PASSWORD'],
+        'name' => ['MYSQLDATABASE', 'MYSQL_DATABASE'],
+    ];
+    $envName = 'DB_' . strtoupper($privateKey === 'pass' ? 'PASS' : $privateKey);
+    $primary = $databaseValue($envName, $privateKey, null);
+    if ($primary !== null) return $primary;
+    foreach ($aliasMap[$privateKey] ?? [] as $alias) {
+        $value = getenv($alias);
+        if ($value !== false && trim((string)$value) !== '') return trim((string)$value);
+    }
+    return $default;
+};
 // Keep the checked-out project convenient in Windows/XAMPP, but never attempt
 // to use the XAMPP root account on a Unix production host without an explicit
 // configuration. That was the cause of the hosted API/cron connection errors.
@@ -30,11 +52,11 @@ $isWindowsDevelopment = DIRECTORY_SEPARATOR === '\\';
 $developmentEnvironment = in_array(strtolower((string)getenv('APP_ENV')), ['local', 'development', 'dev'], true);
 $allowDevelopmentDefaults = $isWindowsDevelopment || $developmentEnvironment;
 
-$db_host = trim((string)$databaseValue('DB_HOST', 'host', 'db.fr-roub1.bengt.wasmernet.com'));
-$db_port = (int)$databaseValue('DB_PORT', 'port', 20184);
-$db_user = trim((string)$databaseValue('DB_USER', 'user', $allowDevelopmentDefaults ? 'root' : 'user_720eaff7'));
-$db_pass = (string)$databaseValue('DB_PASS', 'pass', 'pw_e4JfJFghNxOeTMWSaSikaj9P6gziTZtm');
-$db_name = trim((string)$databaseValue('DB_NAME', 'name', $allowDevelopmentDefaults ? 'bk_teacher_gps3' : 'bk_teacher_gps3'));
+$db_host = trim((string)$databaseValueAlias('host', 'db.fr-roub1.bengt.wasmernet.com'));
+$db_port = (int)$databaseValueAlias('port', 20184);
+$db_user = trim((string)$databaseValueAlias('user', $allowDevelopmentDefaults ? 'root' : 'user_720eaff7'));
+$db_pass = (string)$databaseValueAlias('pass', 'pw_e4JfJFghNxOeTMWSaSikaj9P6gziTZtm');
+$db_name = trim((string)$databaseValueAlias('name', $allowDevelopmentDefaults ? 'bk_teacher_gps3' : 'bk_teacher_gps3'));
 
 try {
   if ($db_host === '' || $db_user === '' || $db_name === '') {
