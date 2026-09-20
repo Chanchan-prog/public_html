@@ -17,10 +17,9 @@ and the API is explicitly configured for that origin.
 
 ## 1. Configure private values
 
-Copy these examples on the server and replace their placeholders:
+Copy this example on the server and replace its placeholders:
 
 ```text
-api/config/database.private.php.example -> api/config/database.private.php
 api/config/private-mail.php.example -> api/config/private-mail.php
 ```
 
@@ -34,7 +33,7 @@ existing production file during a normal code deployment. Do not overwrite it
 with a file from another machine and do not create a new key pair for a routine
 redeploy.
 
-Use either these private files or the equivalent environment variables:
+Configure the database with environment variables:
 
 ```text
 DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS

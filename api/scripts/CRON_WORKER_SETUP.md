@@ -123,10 +123,10 @@ The full backend should be deployed at the server location routed to:
 https://coc-studentinfo.net/tams/api
 ```
 
-Before running the worker, configure the production database. Copy
-`config/database.private.php.example` to `config/database.private.php` on the
-server and enter the cPanel database credentials (or configure the `DB_*`
-environment variables). Do not use the local XAMPP `root` account in hosting.
+Before running the worker, configure the production database with the `DB_*`
+environment variables. On Railway, link the MySQL service so its `MYSQL*`
+variables are injected automatically. Do not use the local XAMPP `root` account
+in hosting.
 See `PRODUCTION_DEPLOYMENT_CHECKLIST.md` for the complete database, mail and
 push configuration.
 

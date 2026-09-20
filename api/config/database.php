@@ -8,21 +8,17 @@ date_default_timezone_set('Asia/Manila');
 /*
  * Production credentials must never be committed in this file. Railway
  * provides MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD and MYSQLDATABASE
- * automatically to services in the same project. A private PHP file and DB_*
- * variables remain supported for local development and other hosting.
+ * automatically to services in the same project. DB_* variables remain
+ * supported for other hosting and local development.
  */
-$databasePrivateFile = __DIR__ . '/database.private.php';
-$databasePrivate = is_file($databasePrivateFile) ? require $databasePrivateFile : [];
-if (!is_array($databasePrivate)) $databasePrivate = [];
 
-$databaseValue = static function (string $environmentName, string $privateKey, $default = '') use ($databasePrivate) {
+$databaseValue = static function (string $environmentName, $default = '') {
     $environmentValue = getenv($environmentName);
     if ($environmentValue !== false) return $environmentValue;
-    if (array_key_exists($privateKey, $databasePrivate)) return $databasePrivate[$privateKey];
     return $default;
 };
 
-$databaseValueAlias = static function (string $privateKey, $default = '') use ($databasePrivate, $databaseValue) {
+$databaseValueAlias = static function (string $privateKey, $default = '') use ($databaseValue) {
     // Railway MySQL exports MYSQLHOST / MYSQLPORT / MYSQLUSER /
     // MYSQLPASSWORD / MYSQLDATABASE. The underscore variants are accepted
     // too for compatibility with other MySQL providers.
@@ -34,7 +30,7 @@ $databaseValueAlias = static function (string $privateKey, $default = '') use ($
         'name' => ['MYSQLDATABASE', 'MYSQL_DATABASE'],
     ];
     $envName = 'DB_' . strtoupper($privateKey === 'pass' ? 'PASS' : $privateKey);
-    $primary = $databaseValue($envName, $privateKey, null);
+    $primary = $databaseValue($envName, null);
     if ($primary !== null) return $primary;
     foreach ($aliasMap[$privateKey] ?? [] as $alias) {
         $value = getenv($alias);
@@ -50,7 +46,7 @@ $db_name = trim((string)$databaseValueAlias('name'));
 
 try {
   if ($db_host === '' || $db_user === '' || $db_name === '') {
-    throw new RuntimeException('Database configuration is missing. In Railway, link the MySQL service so MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD and MYSQLDATABASE are injected. Otherwise set DB_HOST, DB_PORT, DB_NAME, DB_USER and DB_PASS, or create config/database.private.php.');
+    throw new RuntimeException('Database configuration is missing. In Railway, link the MySQL service so MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD and MYSQLDATABASE are injected. Otherwise set DB_HOST, DB_PORT, DB_NAME, DB_USER and DB_PASS.');
   }
   if ($db_port < 1 || $db_port > 65535) {
     throw new RuntimeException('Database port must be between 1 and 65535.');

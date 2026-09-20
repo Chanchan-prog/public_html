@@ -140,8 +140,8 @@ sudo find /var/www/tams/api/uploads /var/www/tams/api/logs /var/www/tams/api/cac
 
 ## 5. Create the database
 
-The app reads the connection from either `DB_*` environment variables or
-`api/config/database.private.php`. Using the private file is simplest on Apache.
+The app reads the connection from `DB_*` environment variables. Configure them
+in the web server/PHP-FPM environment before deploying.
 
 ```bash
 sudo mysql <<'SQL'
@@ -154,24 +154,8 @@ FLUSH PRIVILEGES;
 SQL
 ```
 
-Then configure the app:
-
-```bash
-cp /var/www/tams/api/config/database.private.php.example /var/www/tams/api/config/database.private.php
-sudoedit /var/www/tams/api/config/database.private.php
-```
-
-Fill in:
-
-```php
-return [
-    'host' => 'localhost',
-    'port' => 3306,
-    'name' => 'tams',
-    'user' => 'tams',
-    'pass' => 'REPLACE_WITH_A_STRONG_PASSWORD',
-];
-```
+Set `DB_HOST=localhost`, `DB_PORT=3306`, `DB_NAME=tams`, `DB_USER=tams`, and
+`DB_PASS` to the strong password you created above.
 
 > Existing data? Import it: `mysql -u tams -p tams < your_dump.sql`
 
@@ -231,8 +215,8 @@ return [
 ];
 ```
 
-> Back these three private files up (`database.private.php`,
-> `private-mail.php`, `private-security.php`): they are gitignored and will be
+> Back these two private files up (`private-mail.php`, `private-security.php`):
+> they are gitignored and will be
 > lost if you delete the server.
 
 ---
@@ -367,7 +351,7 @@ is what the project's existing `PRODUCTION_DEPLOYMENT_CHECKLIST.md` was written
 for, so it deploys with **no build pipeline**:
 
 1. In cPanel **MySQL Databases**, create the DB + user, grant full access, and
-   put those values in `database.private.php` (`name`, `user`, `pass`).
+   configure them as `DB_NAME`, `DB_USER`, and `DB_PASS` environment variables.
 2. Upload the merged tree to `public_html/tams/` (same layout as section 3).
 3. Keep both `.htaccess` files. Ensure the host runs **PHP 8.2+** with
    `mysqli`, `gd`, `openssl`, `curl`, `mbstring`, `iconv`, `intl` enabled
@@ -389,8 +373,8 @@ before paying; otherwise use the VPS path.
 
 ## Troubleshooting
 
-- **`database_unavailable` in cron `--check`:** fix `database.private.php` and
-  the MySQL grants, then re-run.
+- **`database_unavailable` in cron `--check`:** verify the database environment
+  variables and MySQL grants, then re-run.
 - **`cross_origin_request_denied` (403) in the browser:** the frontend is being
   served from a different origin than the API. `API_BASE` is auto-derived
   (section 8), so serve both from the same origin, or

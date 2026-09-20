@@ -13,8 +13,8 @@
 #   $TARGET/api/        # the complete api/ directory
 #
 # Server-side state is PRESERVED: api/logs, api/cache, api/uploads, and the
-# gitignored private files (api/config/database.private.php,
-# api/config/private-mail.php, api/config/private-security.php) are never
+# gitignored private files (api/config/private-mail.php,
+# api/config/private-security.php) are never
 # deleted or overwritten by this script.
 #
 # Usage:
@@ -75,7 +75,6 @@ rsync -a --delete \
   --exclude 'logs/' \
   --exclude 'cache/' \
   --exclude 'uploads/' \
-  --exclude 'config/database.private.php' \
   --exclude 'config/private-mail.php' \
   --exclude 'config/private-security.php' \
   "$SRC_API/" "$TARGET/api/"
