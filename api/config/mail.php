@@ -12,8 +12,36 @@ $mailPrivate = is_file($mailPrivateFile) ? require $mailPrivateFile : [];
 if (!is_array($mailPrivate)) $mailPrivate = [];
 
 $mailValue = static function (string $environmentName, string $privateKey, $default = '') use ($mailPrivate) {
-    $environmentValue = getenv($environmentName);
-    if ($environmentValue !== false) return $environmentValue;
+    $candidateNames = [];
+    $candidateNames[] = $environmentName;
+    $candidateNames[] = strtoupper($environmentName);
+    $candidateNames[] = strtolower($environmentName);
+
+    $legacyName = str_replace('MAIL_', 'MAILER_', $environmentName);
+    if ($legacyName !== $environmentName) {
+        $candidateNames[] = $legacyName;
+        $candidateNames[] = strtoupper($legacyName);
+        $candidateNames[] = strtolower($legacyName);
+    }
+
+    $resendLegacyName = str_replace('RESEND_', 'MAILER_RESEND_', $environmentName);
+    if ($resendLegacyName !== $environmentName) {
+        $candidateNames[] = $resendLegacyName;
+        $candidateNames[] = strtoupper($resendLegacyName);
+        $candidateNames[] = strtolower($resendLegacyName);
+    }
+
+    $seenNames = [];
+    foreach ($candidateNames as $candidate) {
+        if ($candidate === '' || isset($seenNames[strtolower($candidate)])) continue;
+        $seenNames[strtolower($candidate)] = true;
+
+        $value = getenv($candidate);
+        if ($value !== false) return $value;
+        if (isset($_ENV[$candidate]) && $_ENV[$candidate] !== '') return $_ENV[$candidate];
+        if (isset($_SERVER[$candidate]) && $_SERVER[$candidate] !== '') return $_SERVER[$candidate];
+    }
+
     if (array_key_exists($privateKey, $mailPrivate)) return $mailPrivate[$privateKey];
     return $default;
 };
