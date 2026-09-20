@@ -1548,7 +1548,13 @@ switch ($endpoint) {
 
                 // Account emails are sent only after all user records commit successfully.
                 foreach ($validatedRows as $validRow) {
-                    $mailResult = $sendAccountCreatedEmail($validRow['first_name'], $validRow['last_name'], $validRow['email'], $validRow['school_id']);
+                    try {
+                        $mailResult = $sendAccountCreatedEmail($validRow['first_name'], $validRow['last_name'], $validRow['email'], $validRow['school_id']);
+                    } catch (Throwable $mailException) {
+                        error_log('[users/import] Mail send exception: ' . $mailException->getMessage());
+                        $mailResult = ['sent' => false, 'error' => 'Mail exception: ' . $mailException->getMessage()];
+                    }
+
                     if (!empty($mailResult['sent'])) {
                         $mailSent++;
                     } else {

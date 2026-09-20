@@ -22,11 +22,12 @@ $smtpSecure = strtolower(trim((string)$mailValue('MAIL_SMTP_SECURE', 'smtp_secur
 if (!in_array($smtpSecure, ['tls', 'ssl', 'none'], true)) $smtpSecure = 'tls';
 
 return [
-    // HTTPS email delivery works on all Railway plans. When configured, it is
-    // preferred to SMTP because Railway disables outbound SMTP on Trial/Hobby.
-    'resend_api_key' => trim((string)getenv('RESEND_API_KEY')),
-    'resend_from_email' => trim((string)getenv('RESEND_FROM_EMAIL')),
-    'resend_from_name' => trim((string)(getenv('RESEND_FROM_NAME') ?: 'Teacher Attendance')),
+    // HTTPS email delivery works on hosted environments where SMTP outbound is
+    // blocked or unreliable. Prefer Resend when configured, then fall back to
+    // SMTP and finally PHP mail().
+    'resend_api_key' => trim((string)$mailValue('RESEND_API_KEY', 'resend_api_key', '')),
+    'resend_from_email' => trim((string)$mailValue('RESEND_FROM_EMAIL', 'resend_from_email', '')),
+    'resend_from_name' => trim((string)$mailValue('RESEND_FROM_NAME', 'resend_from_name', 'Teacher Attendance')),
     'smtp_host' => trim((string)$mailValue('MAIL_SMTP_HOST', 'smtp_host', '')),
     'smtp_port' => (int)$mailValue('MAIL_SMTP_PORT', 'smtp_port', 587),
     'smtp_secure' => $smtpSecure,

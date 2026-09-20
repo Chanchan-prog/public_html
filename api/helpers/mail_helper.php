@@ -112,6 +112,9 @@ function send_forgot_password_email($to, $firstName, $lastName, $otp) {
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
+        if (!empty($mailConfig['resend_api_key']) && !empty($mailConfig['resend_from_email'])) {
+            return send_via_resend_api($to, $subject, $htmlBody, $mailConfig);
+        }
         $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
         if ($useSmtp) {
             return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
@@ -167,6 +170,9 @@ function send_new_account_email($to, $firstName, $lastName, $username) {
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
+        if (!empty($mailConfig['resend_api_key']) && !empty($mailConfig['resend_from_email'])) {
+            return send_via_resend_api($to, $subject, $htmlBody, $mailConfig);
+        }
         $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
         if ($useSmtp) {
             return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
@@ -194,6 +200,9 @@ function send_temporary_password_email($to, $firstName, $lastName, $temporaryPas
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
+        if (!empty($mailConfig['resend_api_key']) && !empty($mailConfig['resend_from_email'])) {
+            return send_via_resend_api($to, $subject, $htmlBody, $mailConfig);
+        }
         if (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)($mailConfig['smtp_pass'] ?? '') !== '') {
             return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
         }
@@ -211,6 +220,9 @@ function send_school_id_password_reset_email($to, $firstName, $lastName) {
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
+        if (!empty($mailConfig['resend_api_key']) && !empty($mailConfig['resend_from_email'])) {
+            return send_via_resend_api($to, $subject, $htmlBody, $mailConfig);
+        }
         if (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)($mailConfig['smtp_pass'] ?? '') !== '') {
             return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
         }
@@ -284,7 +296,7 @@ function send_personal_notification_email($to, $firstName, $notificationType, $b
     $mailConfigPath = __DIR__ . '/../config/mail.php';
     if (is_file($mailConfigPath)) {
         $mailConfig = require $mailConfigPath;
-        if (!empty($mailConfig['resend_api_key'])) {
+        if (!empty($mailConfig['resend_api_key']) && !empty($mailConfig['resend_from_email'])) {
             return send_via_resend_api($to, $subject, $htmlBody, $mailConfig);
         }
         $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
