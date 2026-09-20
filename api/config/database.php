@@ -6,11 +6,10 @@
 date_default_timezone_set('Asia/Manila');
 
 /*
- * Production credentials must never be committed in this file. cPanel PHP
- * processes do not always inherit website environment variables, so a private
- * PHP file is supported as well as DB_* environment variables. Copy
- * database.private.php.example to database.private.php and fill it only on
- * the server (or configure the environment variables in the host panel).
+ * Production credentials must never be committed in this file. Railway
+ * provides MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD and MYSQLDATABASE
+ * automatically to services in the same project. A private PHP file and DB_*
+ * variables remain supported for local development and other hosting.
  */
 $databasePrivateFile = __DIR__ . '/database.private.php';
 $databasePrivate = is_file($databasePrivateFile) ? require $databasePrivateFile : [];
@@ -24,11 +23,9 @@ $databaseValue = static function (string $environmentName, string $privateKey, $
 };
 
 $databaseValueAlias = static function (string $privateKey, $default = '') use ($databasePrivate, $databaseValue) {
-    // Railway/Render MySQL services export standard MYSQLHOST / MYSQLPORT /
-    // MYSQLUSER / MYSQLPASSWORD / MYSQLDATABASE variables (the underscore form,
-    // e.g. MYSQL_HOST, is also common). Use them as a fallback behind the
-    // existing DB_* env vars and the private file so a plain Railway MySQL
-    // service connects without setting up extra DB_* variables.
+    // Railway MySQL exports MYSQLHOST / MYSQLPORT / MYSQLUSER /
+    // MYSQLPASSWORD / MYSQLDATABASE. The underscore variants are accepted
+    // too for compatibility with other MySQL providers.
     $aliasMap = [
         'host' => ['MYSQLHOST', 'MYSQL_HOST'],
         'port' => ['MYSQLPORT', 'MYSQL_PORT'],
@@ -45,22 +42,15 @@ $databaseValueAlias = static function (string $privateKey, $default = '') use ($
     }
     return $default;
 };
-// Keep the checked-out project convenient in Windows/XAMPP, but never attempt
-// to use the XAMPP root account on a Unix production host without an explicit
-// configuration. That was the cause of the hosted API/cron connection errors.
-$isWindowsDevelopment = DIRECTORY_SEPARATOR === '\\';
-$developmentEnvironment = in_array(strtolower((string)getenv('APP_ENV')), ['local', 'development', 'dev'], true);
-$allowDevelopmentDefaults = $isWindowsDevelopment || $developmentEnvironment;
-
-$db_host = trim((string)$databaseValueAlias('host', 'db.fr-roub1.bengt.wasmernet.com'));
-$db_port = (int)$databaseValueAlias('port', 20184);
-$db_user = trim((string)$databaseValueAlias('user', $allowDevelopmentDefaults ? 'root' : 'user_720eaff7'));
-$db_pass = (string)$databaseValueAlias('pass', 'pw_e4JfJFghNxOeTMWSaSikaj9P6gziTZtm');
-$db_name = trim((string)$databaseValueAlias('name', $allowDevelopmentDefaults ? 'bk_teacher_gps3' : 'bk_teacher_gps3'));
+$db_host = trim((string)$databaseValueAlias('host'));
+$db_port = (int)$databaseValueAlias('port', 3306);
+$db_user = trim((string)$databaseValueAlias('user'));
+$db_pass = (string)$databaseValueAlias('pass');
+$db_name = trim((string)$databaseValueAlias('name'));
 
 try {
   if ($db_host === '' || $db_user === '' || $db_name === '') {
-    throw new RuntimeException('Database configuration is missing. Set DB_HOST, DB_PORT, DB_NAME, DB_USER and DB_PASS, or create config/database.private.php.');
+    throw new RuntimeException('Database configuration is missing. In Railway, link the MySQL service so MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD and MYSQLDATABASE are injected. Otherwise set DB_HOST, DB_PORT, DB_NAME, DB_USER and DB_PASS, or create config/database.private.php.');
   }
   if ($db_port < 1 || $db_port > 65535) {
     throw new RuntimeException('Database port must be between 1 and 65535.');
