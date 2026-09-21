@@ -1,6 +1,6 @@
 <?php
 // api/helpers/mail_helper.php
-// Sends OTP email via SMTP (pure PHP, no Composer/PHPMailer needed).
+// Sends email through Resend first, with SMTP fallback only when configured.
 
 /**
  * Validate that an email string is exactly one deliverable recipient.

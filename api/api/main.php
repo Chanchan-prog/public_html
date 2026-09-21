@@ -1586,13 +1586,19 @@ switch ($endpoint) {
 
             $logAction = $previewOnly ? 'preview_import_users' : 'import_users';
             $logPrefix = $previewOnly ? 'Previewed user import' : 'Imported users via spreadsheet';
-            log_system_action(
-                $mysqli,
-                $authUserId,
-                $logAction,
-                "{$logPrefix}: inserted={$inserted}, skipped={$skipped}, total=" . count($rows)
-                    . ($previewOnly ? '' : ", email_sent={$mailSent}, email_failed={$mailFailed}")
-            );
+            // An audit-log schema issue must not turn a successfully committed
+            // import (and its mail delivery report) into a 500 response.
+            try {
+                log_system_action(
+                    $mysqli,
+                    $authUserId,
+                    $logAction,
+                    "{$logPrefix}: inserted={$inserted}, skipped={$skipped}, total=" . count($rows)
+                        . ($previewOnly ? '' : ", email_sent={$mailSent}, email_failed={$mailFailed}")
+                );
+            } catch (Throwable $logException) {
+                error_log('[users/import] Audit log failed after successful import: ' . $logException->getMessage());
+            }
             json_response([
                 'preview' => $previewOnly,
                 'inserted' => $inserted,

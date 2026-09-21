@@ -37,10 +37,20 @@ Configure the database with environment variables:
 
 ```text
 DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
+MAIL_TRANSPORT
 MAIL_SMTP_HOST, MAIL_SMTP_PORT, MAIL_SMTP_SECURE
 MAIL_SMTP_USER, MAIL_SMTP_PASS, MAIL_FROM_EMAIL, MAIL_FROM_NAME
 VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
 ```
+
+For a Railway service that should send through Gmail, set
+`MAIL_TRANSPORT=smtp`. This makes Gmail take precedence even if a Resend key
+is also configured. Use `smtp.gmail.com`, port `587`, and `tls`, and set
+`MAIL_SMTP_USER` and `MAIL_FROM_EMAIL` to the Gmail sender address.
+
+Create a Google **App Password** after enabling 2-Step Verification and put it
+in `MAIL_SMTP_PASS`; a normal Gmail password will be rejected. Keep all of
+these values only in Railway Variables, never in a committed PHP file.
 
 Set `MAIL_SMTP_SECURE` to `tls` for STARTTLS (usually port 587) or `ssl` for
 implicit TLS (usually port 465). The configured From address should normally
