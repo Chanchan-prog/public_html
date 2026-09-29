@@ -117,6 +117,7 @@ function send_forgot_password_email($to, $firstName, $lastName, $otp) {
         }
         $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
         if ($useSmtp) {
+            error_log('[mail_helper] Attempting to send forgot-password email via SMTP to ' . $to);
             return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
         }
     }
@@ -175,6 +176,7 @@ function send_new_account_email($to, $firstName, $lastName, $username) {
         }
         $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
         if ($useSmtp) {
+            error_log('[mail_helper] Attempting to send new-account email via SMTP to ' . $to);
             return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
         }
     }
@@ -204,6 +206,7 @@ function send_temporary_password_email($to, $firstName, $lastName, $temporaryPas
             return send_via_resend_api($to, $subject, $htmlBody, $mailConfig);
         }
         if (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)($mailConfig['smtp_pass'] ?? '') !== '') {
+            error_log('[mail_helper] Attempting to send temporary-password email via SMTP to ' . $to);
             return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
         }
     }
@@ -224,6 +227,7 @@ function send_school_id_password_reset_email($to, $firstName, $lastName) {
             return send_via_resend_api($to, $subject, $htmlBody, $mailConfig);
         }
         if (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)($mailConfig['smtp_pass'] ?? '') !== '') {
+            error_log('[mail_helper] Attempting to send school-id-reset email via SMTP to ' . $to);
             return send_via_smtp_socket($to, $from, $subject, $htmlBody, $mailConfig);
         }
     }
@@ -301,6 +305,7 @@ function send_personal_notification_email($to, $firstName, $notificationType, $b
         }
         $useSmtp = (!empty($mailConfig['smtp_host']) && !empty($mailConfig['smtp_user']) && (string)$mailConfig['smtp_pass'] !== '');
         if ($useSmtp) {
+            error_log('[mail_helper] Attempting to send personal notification email via SMTP to ' . $recipient);
             return send_via_smtp_socket($recipient, $from, $subject, $htmlBody, $mailConfig);
         }
     }
@@ -335,6 +340,8 @@ function send_via_smtp_socket($to, $fromFallback, $subject, $htmlBody, $mailConf
     $fromEmail = !empty($mailConfig['from_email']) ? trim((string)$mailConfig['from_email']) : ($user !== '' ? $user : $fromFallback);
     $fromName = trim((string)($mailConfig['from_name'] ?? 'Teacher Attendance'));
 
+    error_log("[mail_helper] SMTP config: host=$host port=$port user=$user secure=$secure timeout=$timeout");
+
     if ($host === '' || $port < 1 || $port > 65535 || $user === '' || $pass === '') {
         return mail_helper_smtp_failure('configuration', 'SMTP host, port, username, or password is missing');
     }
@@ -358,6 +365,7 @@ function send_via_smtp_socket($to, $fromFallback, $subject, $htmlBody, $mailConf
     $errStr = '';
     $context = stream_context_create();
     $socketTarget = ($secure === 'ssl' ? 'ssl' : 'tcp') . "://$host:$port";
+    error_log("[mail_helper] Connecting to $socketTarget with timeout {$timeout}s");
     $sock = @stream_socket_client(
         $socketTarget,
         $errNo,
@@ -426,5 +434,7 @@ function send_via_smtp_socket($to, $fromFallback, $subject, $htmlBody, $mailConf
     }
     $send("QUIT");
     @fclose($sock);
+    error_log("[mail_helper] SMTP email sent successfully to $to");
     return true;
 }
+
